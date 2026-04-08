@@ -1,0 +1,56 @@
+{
+  "version": "4.0.0",
+  "platform": "generic",
+  "paths": {
+    "data_dir": "data",
+    "tasks_dir": "${data_dir}/tasks",
+    "decisions_dir": "${data_dir}/decisions",
+    "risks_dir": "${data_dir}/risks",
+    "memory_dir": "${data_dir}/memory",
+    "logs_dir": "${data_dir}/logs"
+  },
+  "storage": {
+    "backend": "file",
+    "file_lock": true,
+    "auto_backup": false
+  },
+  "features": {
+    "readonly_mode": false,
+    "auto_sync_memory": true,
+    "sla_check_enabled": true,
+    "risk_alert_threshold": 3
+  },
+  "ai_platform": {
+    "name": "generic",
+    "tool_prefix": "python3 tools/",
+    "supports_bash": true,
+    "supports_function_calling": false
+  },
+  "platforms": {
+    "claude_code": {
+      "skill_path": "~/.claude/skills/opc-team/SKILL.md",
+      "tool_prefix": "python3 tools/",
+      "supports_bash": true
+    },
+    "openclaw": {
+      "skill_path": "~/.openclaw/workspace-{agent}/skills/opc-team/SKILL.md",
+      "tool_prefix": "python3 scripts/",
+      "supports_bash": true
+    },
+    "cursor": {
+      "skill_path": ".cursorrules",
+      "tool_prefix": "python3 tools/",
+      "supports_bash": true
+    },
+    "windsurf": {
+      "skill_path": ".windsurfrules",
+      "tool_prefix": "python3 tools/",
+      "supports_bash": true
+    },
+    "api": {
+      "skill_path": null,
+      "tool_prefix": null,
+      "supports_function_calling": true
+    }
+  }
+}
