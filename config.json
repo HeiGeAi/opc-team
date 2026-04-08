@@ -21,7 +21,7 @@
     "risk_alert_threshold": 3
   },
   "ai_platform": {
-    "name": "generic",
+    "name": "claude_code",
     "tool_prefix": "python3 tools/",
     "supports_bash": true,
     "supports_function_calling": false

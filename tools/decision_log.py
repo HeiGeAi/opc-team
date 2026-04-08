@@ -11,27 +11,32 @@ decision_log.py - OPC Team 决策履历管理
 """
 
 import json
-import os
-import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, Dict, List
-import fcntl
 import argparse
+
+from config import get_config
+
+try:
+    import fcntl
+    HAS_FCNTL = True
+except ImportError:
+    HAS_FCNTL = False
 
 
 # ==================== 工具函数 ====================
 
 def get_decision_dir() -> Path:
     """获取决策目录"""
-    decision_dir = Path.cwd() / "data" / "decisions"
+    decision_dir = get_config().get_path("decisions_dir")
     decision_dir.mkdir(parents=True, exist_ok=True)
     return decision_dir
 
 
 def get_log_dir() -> Path:
     """获取日志目录"""
-    log_dir = Path.cwd() / "data" / "logs"
+    log_dir = get_config().get_path("logs_dir")
     log_dir.mkdir(parents=True, exist_ok=True)
     return log_dir
 
@@ -45,7 +50,7 @@ def log_operation(operation: str, decision_id: str, details: Dict):
         "decision_id": decision_id,
         "details": details
     }
-    with open(log_file, "a") as f:
+    with open(log_file, "a", encoding="utf-8") as f:
         f.write(json.dumps(log_entry, ensure_ascii=False) + "\n")
 
 
@@ -56,24 +61,30 @@ def load_decision(decision_id: str) -> Optional[Dict]:
         return None
 
     decision_file = decision_files[0]
-    with open(decision_file, "r") as f:
-        fcntl.flock(f.fileno(), fcntl.LOCK_SH)
-        try:
+    with open(decision_file, "r", encoding="utf-8") as f:
+        if HAS_FCNTL:
+            fcntl.flock(f.fileno(), fcntl.LOCK_SH)
+            try:
+                return json.load(f)
+            finally:
+                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+        else:
             return json.load(f)
-        finally:
-            fcntl.flock(f.fileno(), fcntl.LOCK_UN)
 
 
 def save_decision(decision: Dict):
     """保存决策（带文件锁）"""
     decision_file = get_decision_dir() / f"{decision['task_id']}_{decision['decision_id']}.json"
 
-    with open(decision_file, "w") as f:
-        fcntl.flock(f.fileno(), fcntl.LOCK_EX)
-        try:
+    with open(decision_file, "w", encoding="utf-8") as f:
+        if HAS_FCNTL:
+            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+            try:
+                json.dump(decision, f, ensure_ascii=False, indent=2)
+            finally:
+                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+        else:
             json.dump(decision, f, ensure_ascii=False, indent=2)
-        finally:
-            fcntl.flock(f.fileno(), fcntl.LOCK_UN)
 
 
 def generate_decision_id() -> str:
@@ -247,7 +258,7 @@ def list_decisions(task_id: Optional[str] = None):
 
     decisions = []
     for f in decision_files:
-        with open(f, "r") as file:
+        with open(f, "r", encoding="utf-8") as file:
             decisions.append(json.load(file))
 
     decisions.sort(key=lambda d: d["created_at"], reverse=True)

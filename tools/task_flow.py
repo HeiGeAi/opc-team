@@ -11,14 +11,25 @@ task_flow.py - OPC Team 任务状态机
 """
 
 import json
-import os
 import sys
 from datetime import datetime, timedelta
 from enum import Enum
 from pathlib import Path
 from typing import Optional, Dict, List
-import fcntl
 import argparse
+
+from config import get_config
+
+try:
+    import fcntl
+    HAS_FCNTL = True
+except ImportError:
+    HAS_FCNTL = False
+    try:
+        import filelock
+        HAS_FILELOCK = True
+    except ImportError:
+        HAS_FILELOCK = False
 
 
 # ==================== 枚举定义 ====================
@@ -65,16 +76,23 @@ SLA_LIMITS = {
 
 def get_data_dir() -> Path:
     """获取数据目录"""
-    data_dir = Path.cwd() / "data" / "tasks"
+    data_dir = get_config().get_path("tasks_dir")
     data_dir.mkdir(parents=True, exist_ok=True)
     return data_dir
 
 
 def get_log_dir() -> Path:
     """获取日志目录"""
-    log_dir = Path.cwd() / "data" / "logs"
+    log_dir = get_config().get_path("logs_dir")
     log_dir.mkdir(parents=True, exist_ok=True)
     return log_dir
+
+
+def get_decision_dir() -> Path:
+    """获取决策目录"""
+    decision_dir = get_config().get_path("decisions_dir")
+    decision_dir.mkdir(parents=True, exist_ok=True)
+    return decision_dir
 
 
 def log_operation(operation: str, task_id: str, details: Dict):
@@ -86,7 +104,7 @@ def log_operation(operation: str, task_id: str, details: Dict):
         "task_id": task_id,
         "details": details
     }
-    with open(log_file, "a") as f:
+    with open(log_file, "a", encoding="utf-8") as f:
         f.write(json.dumps(log_entry, ensure_ascii=False) + "\n")
 
 
@@ -96,24 +114,30 @@ def load_task(task_id: str) -> Optional[Dict]:
     if not task_file.exists():
         return None
 
-    with open(task_file, "r") as f:
-        fcntl.flock(f.fileno(), fcntl.LOCK_SH)
-        try:
+    with open(task_file, "r", encoding="utf-8") as f:
+        if HAS_FCNTL:
+            fcntl.flock(f.fileno(), fcntl.LOCK_SH)
+            try:
+                return json.load(f)
+            finally:
+                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+        else:
             return json.load(f)
-        finally:
-            fcntl.flock(f.fileno(), fcntl.LOCK_UN)
 
 
 def save_task(task: Dict):
     """保存任务（带文件锁）"""
     task_file = get_data_dir() / f"{task['task_id']}.json"
 
-    with open(task_file, "w") as f:
-        fcntl.flock(f.fileno(), fcntl.LOCK_EX)
-        try:
+    with open(task_file, "w", encoding="utf-8") as f:
+        if HAS_FCNTL:
+            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+            try:
+                json.dump(task, f, ensure_ascii=False, indent=2)
+            finally:
+                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+        else:
             json.dump(task, f, ensure_ascii=False, indent=2)
-        finally:
-            fcntl.flock(f.fileno(), fcntl.LOCK_UN)
 
 
 def generate_task_id() -> str:
@@ -217,8 +241,7 @@ def transition_state(task_id: str, to_state: str, actor: str):
 
     # L3 任务完成前必须有决策履历
     if to_state == TaskState.COMPLETED.value and task.get("level") == TaskLevel.L3.value:
-        decision_dir = Path.cwd() / "data" / "decisions"
-        decisions = list(decision_dir.glob(f"{task_id}_*.json")) if decision_dir.exists() else []
+        decisions = list(get_decision_dir().glob(f"{task_id}_*.json"))
         if not decisions:
             print(json.dumps({
                 "success": False,

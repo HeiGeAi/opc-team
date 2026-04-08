@@ -1,6 +1,6 @@
-# OPC Team - 跨平台通用版 v4.0.0
+# OPC Team - 跨平台通用版 v4.1.0
 
-**版本**: v4.0.0 Universal Edition  
+**版本**: v4.1.0 Universal Edition  
 **类型**: 跨平台 Agent 协作框架
 
 ---
@@ -321,6 +321,7 @@ python3 tools/memory_sync.py sync --task-id T001
 
 ## 🔄 版本历史
 
+- **v4.1.0** (2026-04-08): 修复安装链路、路径配置、storage bug、SKILL.md args
 - **v4.0.0** (2026-04-08): 跨平台通用版，支持多平台、配置系统、存储抽象层
 - **v3.0.0** (2026-04-08): 文档版，整合所有历史版本（已废弃）
 - **v2.5.0**: 记忆系统集成

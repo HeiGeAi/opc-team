@@ -15,6 +15,8 @@ from pathlib import Path
 from typing import Any, Optional, Dict
 
 
+
+
 class Config:
     """配置管理器"""
 
@@ -55,7 +57,7 @@ class Config:
     def _create_default_config(self) -> Dict:
         """创建默认配置"""
         default = {
-            "version": "4.0.0",
+            "version": "4.1.0",
             "platform": "generic",  # generic / claude_code / openclaw / cursor
             "paths": {
                 "data_dir": str(Path.cwd() / "data"),
@@ -270,7 +272,8 @@ if __name__ == "__main__":
     subparsers = parser.add_subparsers(dest="command")
 
     # init 命令
-    subparsers.add_parser("init", help="初始化配置文件")
+    init_parser = subparsers.add_parser("init", help="初始化配置文件")
+    init_parser.add_argument("--platform", help="指定平台 (claude_code/openclaw/cursor/windsurf/generic)")
 
     # get 命令
     get_parser = subparsers.add_parser("get", help="获取配置值")
@@ -296,6 +299,10 @@ if __name__ == "__main__":
     config = get_config()
 
     if args.command == "init":
+        if args.platform:
+            config.adapt_to_platform(args.platform)
+        else:
+            config.adapt_to_platform()
         config.ensure_dirs()
         print(f"✅ 配置文件已初始化: {config.config_file}")
         config.print_info()

@@ -86,8 +86,10 @@ class FileStorage(Storage):
         if HAS_FCNTL:
             fcntl.flock(file_obj.fileno(), fcntl.LOCK_EX)
         elif HAS_FILELOCK:
-            # filelock 库需要单独的锁文件
-            pass
+            import filelock
+            lock_path = str(file_obj.name) + ".lock"
+            lock = filelock.FileLock(lock_path)
+            lock.acquire()
 
     def _unlock_file(self, file_obj):
         """解锁文件"""
@@ -96,6 +98,11 @@ class FileStorage(Storage):
 
         if HAS_FCNTL:
             fcntl.flock(file_obj.fileno(), fcntl.LOCK_UN)
+        elif HAS_FILELOCK:
+            import filelock
+            lock_path = str(file_obj.name) + ".lock"
+            lock = filelock.FileLock(lock_path)
+            lock.release()
 
     def save(self, key: str, data: Dict) -> None:
         """保存数据"""
@@ -223,7 +230,8 @@ class SQLiteStorage(Storage):
         """删除数据"""
         import sqlite3
         conn = sqlite3.connect(self.db_path)
-        cursor = cursor.execute("DELETE FROM opc_data WHERE key = ?", (key,))
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM opc_data WHERE key = ?", (key,))
         affected = cursor.rowcount
         conn.commit()
         conn.close()

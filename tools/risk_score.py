@@ -10,13 +10,18 @@ risk_score.py - OPC Team 风险量化评分
 """
 
 import json
-import os
-import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, Dict, List
-import fcntl
 import argparse
+
+from config import get_config
+
+try:
+    import fcntl
+    HAS_FCNTL = True
+except ImportError:
+    HAS_FCNTL = False
 
 
 # ==================== 风险评分矩阵 ====================
@@ -53,14 +58,14 @@ RISK_LEVEL_DESC = {
 
 def get_risk_dir() -> Path:
     """获取风险目录"""
-    risk_dir = Path.cwd() / "data" / "risks"
+    risk_dir = get_config().get_path("risks_dir")
     risk_dir.mkdir(parents=True, exist_ok=True)
     return risk_dir
 
 
 def get_log_dir() -> Path:
     """获取日志目录"""
-    log_dir = Path.cwd() / "data" / "logs"
+    log_dir = get_config().get_path("logs_dir")
     log_dir.mkdir(parents=True, exist_ok=True)
     return log_dir
 
@@ -74,7 +79,7 @@ def log_operation(operation: str, risk_id: str, details: Dict):
         "risk_id": risk_id,
         "details": details
     }
-    with open(log_file, "a") as f:
+    with open(log_file, "a", encoding="utf-8") as f:
         f.write(json.dumps(log_entry, ensure_ascii=False) + "\n")
 
 
@@ -85,24 +90,30 @@ def load_risk(risk_id: str) -> Optional[Dict]:
         return None
 
     risk_file = risk_files[0]
-    with open(risk_file, "r") as f:
-        fcntl.flock(f.fileno(), fcntl.LOCK_SH)
-        try:
+    with open(risk_file, "r", encoding="utf-8") as f:
+        if HAS_FCNTL:
+            fcntl.flock(f.fileno(), fcntl.LOCK_SH)
+            try:
+                return json.load(f)
+            finally:
+                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+        else:
             return json.load(f)
-        finally:
-            fcntl.flock(f.fileno(), fcntl.LOCK_UN)
 
 
 def save_risk(risk: Dict):
     """保存风险（带文件锁）"""
     risk_file = get_risk_dir() / f"{risk['task_id']}_{risk['risk_id']}.json"
 
-    with open(risk_file, "w") as f:
-        fcntl.flock(f.fileno(), fcntl.LOCK_EX)
-        try:
+    with open(risk_file, "w", encoding="utf-8") as f:
+        if HAS_FCNTL:
+            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+            try:
+                json.dump(risk, f, ensure_ascii=False, indent=2)
+            finally:
+                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+        else:
             json.dump(risk, f, ensure_ascii=False, indent=2)
-        finally:
-            fcntl.flock(f.fileno(), fcntl.LOCK_UN)
 
 
 def generate_risk_id() -> str:
@@ -227,7 +238,7 @@ def list_risks(task_id: str, min_level: Optional[int] = None):
 
     risks = []
     for risk_file in risk_files:
-        with open(risk_file, "r") as f:
+        with open(risk_file, "r", encoding="utf-8") as f:
             risk = json.load(f)
             if min_level is None or risk["level"] >= min_level:
                 risks.append({

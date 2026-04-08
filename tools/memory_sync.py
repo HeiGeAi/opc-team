@@ -12,34 +12,40 @@ memory_sync.py - OPC Team 三级记忆系统
 """
 
 import json
-import os
-import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, Dict, List
-import fcntl
 import argparse
+
+from config import get_config
 
 
 # ==================== 工具函数 ====================
 
 def get_memory_dir() -> Path:
     """获取记忆目录"""
-    memory_dir = Path.cwd() / "data" / "memory"
+    memory_dir = get_config().get_path("memory_dir")
     memory_dir.mkdir(parents=True, exist_ok=True)
     return memory_dir
 
 
 def get_memory_file() -> Path:
     """获取 MEMORY.md 文件路径"""
-    return Path.cwd() / "data" / "MEMORY.md"
+    return get_config().get_path("data_dir") / "MEMORY.md"
 
 
 def get_log_dir() -> Path:
     """获取日志目录"""
-    log_dir = Path.cwd() / "data" / "logs"
+    log_dir = get_config().get_path("logs_dir")
     log_dir.mkdir(parents=True, exist_ok=True)
     return log_dir
+
+
+def get_decision_dir() -> Path:
+    """获取决策目录"""
+    decision_dir = get_config().get_path("decisions_dir")
+    decision_dir.mkdir(parents=True, exist_ok=True)
+    return decision_dir
 
 
 def log_operation(operation: str, details: Dict):
@@ -50,7 +56,7 @@ def log_operation(operation: str, details: Dict):
         "operation": operation,
         "details": details
     }
-    with open(log_file, "a") as f:
+    with open(log_file, "a", encoding="utf-8") as f:
         f.write(json.dumps(log_entry, ensure_ascii=False) + "\n")
 
 
@@ -60,7 +66,7 @@ def load_l0_memory(task_id: str) -> List[str]:
     if not l0_file.exists():
         return []
 
-    with open(l0_file, "r") as f:
+    with open(l0_file, "r", encoding="utf-8") as f:
         data = json.load(f)
         return data.get("entries", [])
 
@@ -68,7 +74,7 @@ def load_l0_memory(task_id: str) -> List[str]:
 def save_l0_memory(task_id: str, entries: List[str]):
     """保存 L0 即时记忆"""
     l0_file = get_memory_dir() / f"L0_{task_id}.json"
-    with open(l0_file, "w") as f:
+    with open(l0_file, "w", encoding="utf-8") as f:
         json.dump({
             "task_id": task_id,
             "entries": entries,
@@ -82,14 +88,14 @@ def load_l1_memory() -> Dict:
     if not l1_file.exists():
         return {}
 
-    with open(l1_file, "r") as f:
+    with open(l1_file, "r", encoding="utf-8") as f:
         return json.load(f)
 
 
 def save_l1_memory(l1_data: Dict):
     """保存 L1 短期记忆"""
     l1_file = get_memory_dir() / "L1_short_term.json"
-    with open(l1_file, "w") as f:
+    with open(l1_file, "w", encoding="utf-8") as f:
         json.dump(l1_data, f, ensure_ascii=False, indent=2)
 
 
@@ -104,15 +110,46 @@ def load_l2_memory() -> Dict:
             "成功案例": []
         }
 
-    with open(l2_file, "r") as f:
+    with open(l2_file, "r", encoding="utf-8") as f:
         return json.load(f)
 
 
 def save_l2_memory(l2_data: Dict):
     """保存 L2 长期记忆"""
     l2_file = get_memory_dir() / "L2_long_term.json"
-    with open(l2_file, "w") as f:
+    with open(l2_file, "w", encoding="utf-8") as f:
         json.dump(l2_data, f, ensure_ascii=False, indent=2)
+
+
+def init_memory_system():
+    """初始化记忆系统"""
+    config = get_config()
+    config.ensure_dirs()
+
+    memory_file = get_memory_file()
+    if not memory_file.exists():
+        with open(memory_file, "w", encoding="utf-8") as f:
+            f.write("# OPC Team Memory\n")
+
+    if not (get_memory_dir() / "L1_short_term.json").exists():
+        save_l1_memory({})
+
+    if not (get_memory_dir() / "L2_long_term.json").exists():
+        save_l2_memory({
+            "CEO偏好": [],
+            "方法论": [],
+            "避坑指南": [],
+            "成功案例": []
+        })
+
+    log_operation("init_memory_system", {"memory_file": str(memory_file)})
+
+    print(json.dumps({
+        "success": True,
+        "memory_dir": str(get_memory_dir()),
+        "memory_file": str(memory_file),
+        "message": "记忆系统初始化成功"
+    }, ensure_ascii=False))
 
 
 # ==================== 核心功能 ====================
@@ -253,11 +290,11 @@ def sync_to_memory_md(task_id: str):
     task_summary = l1_data.get(task_id, {}).get("summary", "无摘要")
 
     # 读取决策履历
-    decision_dir = Path.cwd() / "data" / "decisions"
+    decision_dir = get_decision_dir()
     decisions = []
     if decision_dir.exists():
         for dec_file in decision_dir.glob(f"{task_id}_*.json"):
-            with open(dec_file, "r") as f:
+            with open(dec_file, "r", encoding="utf-8") as f:
                 dec = json.load(f)
                 decisions.append(f"- 决策 #{dec['decision_id']}: {dec['title']} → {dec['chosen']}")
 
@@ -265,7 +302,7 @@ def sync_to_memory_md(task_id: str):
     content = []
 
     if memory_file.exists():
-        with open(memory_file, "r") as f:
+        with open(memory_file, "r", encoding="utf-8") as f:
             content = f.readlines()
 
     # 添加新任务记录
@@ -279,7 +316,7 @@ def sync_to_memory_md(task_id: str):
     content.append(new_entry)
 
     # 写入文件
-    with open(memory_file, "w") as f:
+    with open(memory_file, "w", encoding="utf-8") as f:
         f.writelines(content)
 
     log_operation("sync_to_memory_md", {"task_id": task_id})
@@ -297,6 +334,9 @@ def sync_to_memory_md(task_id: str):
 def main():
     parser = argparse.ArgumentParser(description="OPC Team 三级记忆系统")
     subparsers = parser.add_subparsers(dest="command", help="命令")
+
+    # init 命令
+    subparsers.add_parser("init", help="初始化记忆系统")
 
     # write 命令
     write_parser = subparsers.add_parser("write", help="写入 L0 即时记忆")
@@ -326,7 +366,9 @@ def main():
 
     args = parser.parse_args()
 
-    if args.command == "write":
+    if args.command == "init":
+        init_memory_system()
+    elif args.command == "write":
         write_l0(args.task_id, args.content)
     elif args.command == "compress":
         compress_to_l1(args.task_id, args.summary)

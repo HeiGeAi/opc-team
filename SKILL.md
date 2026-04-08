@@ -1,4 +1,4 @@
-# OPC公司Agent团队 v4.0.0 (Universal Edition)
+# OPC公司Agent团队 v4.1.0 (Universal Edition)
 
 **这是一个跨平台通用的 Agent 协作框架。**
 
@@ -259,7 +259,9 @@ python3 tools/decision_log.py create \
   --task-id T001 \
   --decision-id D001 \
   --title "定价策略" \
+  --options "方案A:低价引流,方案B:高价深坑,方案C:订阅制" \
   --chosen "方案B" \
+  --reason "高净值用户付费意愿强，口碑传播效果好" \
   --assumptions "假设1:获客成本<50元,假设2:转化率>5%"
 
 python3 tools/task_flow.py progress \
@@ -490,7 +492,7 @@ python3 /path/to/opc-team/tools/task_flow.py create ...
 
 ## 八、版本信息
 
-- **版本**: v4.0.0 Universal Edition
+- **版本**: v4.1.0 Universal Edition
 - **发布日期**: 2026-04-08
 - **兼容平台**: Claude Code / OpenClaw / Cursor / Windsurf / 通用 CLI
 - **依赖**: Python 3.7+

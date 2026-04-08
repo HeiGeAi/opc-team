@@ -1,0 +1,369 @@
+{
+  "name": "opc_team",
+  "description": "OPC Team - 跨平台 AI Agent 协作框架。负责任务管理、决策履历、风险评分、三级记忆系统。",
+  "version": "4.1.0",
+  "tools": [
+    {
+      "name": "task_create",
+      "description": "创建新任务",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "任务标题"
+          },
+          "ceo_input": {
+            "type": "string",
+            "description": "CEO 输入/原始需求"
+          }
+        },
+        "required": ["title", "ceo_input"]
+      }
+    },
+    {
+      "name": "task_assess",
+      "description": "任务定级（L1-L4）",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "task_id": {
+            "type": "string",
+            "description": "任务ID，如 T001"
+          },
+          "level": {
+            "type": "string",
+            "description": "任务级别",
+            "enum": ["L1", "L2", "L3", "L4"]
+          },
+          "reason": {
+            "type": "string",
+            "description": "定级原因"
+          }
+        },
+        "required": ["task_id", "level", "reason"]
+      }
+    },
+    {
+      "name": "task_transition",
+      "description": "任务状态流转",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "task_id": {
+            "type": "string",
+            "description": "任务ID"
+          },
+          "to": {
+            "type": "string",
+            "description": "目标状态",
+            "enum": ["assessed", "in_strategy", "in_execution", "in_debate", "completed", "blocked", "escalated"]
+          },
+          "actor": {
+            "type": "string",
+            "description": "操作者，如 COO魏明远"
+          }
+        },
+        "required": ["task_id", "to", "actor"]
+      }
+    },
+    {
+      "name": "task_progress",
+      "description": "上报任务进度",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "task_id": {
+            "type": "string",
+            "description": "任务ID"
+          },
+          "message": {
+            "type": "string",
+            "description": "进度描述"
+          },
+          "progress": {
+            "type": "integer",
+            "description": "进度百分比 0-100",
+            "minimum": 0,
+            "maximum": 100
+          }
+        },
+        "required": ["task_id", "message", "progress"]
+      }
+    },
+    {
+      "name": "task_status",
+      "description": "查询任务状态",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "task_id": {
+            "type": "string",
+            "description": "任务ID"
+          }
+        },
+        "required": ["task_id"]
+      }
+    },
+    {
+      "name": "decision_create",
+      "description": "创建决策履历",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "task_id": {
+            "type": "string",
+            "description": "关联任务ID"
+          },
+          "decision_id": {
+            "type": "string",
+            "description": "决策ID（可选，自动生成）"
+          },
+          "title": {
+            "type": "string",
+            "description": "决策标题"
+          },
+          "options": {
+            "type": "string",
+            "description": "供选方案（逗号分隔），如 方案A,方案B,方案C"
+          },
+          "chosen": {
+            "type": "string",
+            "description": "最终选择"
+          },
+          "reason": {
+            "type": "string",
+            "description": "决策依据"
+          },
+          "assumptions": {
+            "type": "string",
+            "description": "假设清单，格式 假设1:描述1,假设2:描述2"
+          }
+        },
+        "required": ["task_id", "title", "options", "chosen", "reason", "assumptions"]
+      }
+    },
+    {
+      "name": "decision_update_assumption",
+      "description": "更新假设验证状态",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "decision_id": {
+            "type": "string",
+            "description": "决策ID，如 D001"
+          },
+          "assumption_id": {
+            "type": "integer",
+            "description": "假设ID（从1开始）"
+          },
+          "status": {
+            "type": "string",
+            "description": "验证状态",
+            "enum": ["验证", "证伪", "部分验证"]
+          },
+          "actual": {
+            "type": "string",
+            "description": "实际情况描述"
+          },
+          "trigger_review": {
+            "type": "boolean",
+            "description": "是否触发48小时重审"
+          }
+        },
+        "required": ["decision_id", "assumption_id", "status"]
+      }
+    },
+    {
+      "name": "decision_backfill",
+      "description": "回填决策结果",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "decision_id": {
+            "type": "string",
+            "description": "决策ID"
+          },
+          "result": {
+            "type": "string",
+            "description": "结果",
+            "enum": ["成功", "失败", "部分成功"]
+          },
+          "metrics": {
+            "type": "string",
+            "description": "量化指标"
+          },
+          "lessons": {
+            "type": "string",
+            "description": "经验教训"
+          }
+        },
+        "required": ["decision_id", "result"]
+      }
+    },
+    {
+      "name": "risk_assess",
+      "description": "评估风险（概率×影响=等级）",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "task_id": {
+            "type": "string",
+            "description": "任务ID"
+          },
+          "risk_name": {
+            "type": "string",
+            "description": "风险名称"
+          },
+          "probability": {
+            "type": "integer",
+            "description": "发生概率 1-5",
+            "minimum": 1,
+            "maximum": 5
+          },
+          "impact": {
+            "type": "integer",
+            "description": "影响程度 1-5",
+            "minimum": 1,
+            "maximum": 5
+          },
+          "mitigation": {
+            "type": "string",
+            "description": "应对预案"
+          }
+        },
+        "required": ["task_id", "risk_name", "probability", "impact"]
+      }
+    },
+    {
+      "name": "risk_update",
+      "description": "更新风险状态",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "risk_id": {
+            "type": "string",
+            "description": "风险ID，如 R001"
+          },
+          "status": {
+            "type": "string",
+            "description": "状态，如 未发生/已发生"
+          },
+          "actual_impact": {
+            "type": "integer",
+            "description": "实际影响 1-5"
+          }
+        },
+        "required": ["risk_id", "status"]
+      }
+    },
+    {
+      "name": "risk_list",
+      "description": "列出任务风险",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "task_id": {
+            "type": "string",
+            "description": "任务ID"
+          },
+          "min_level": {
+            "type": "integer",
+            "description": "最小风险等级（1-5）"
+          }
+        },
+        "required": ["task_id"]
+      }
+    },
+    {
+      "name": "memory_write",
+      "description": "写入 L0 即时记忆",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "task_id": {
+            "type": "string",
+            "description": "任务ID"
+          },
+          "content": {
+            "type": "string",
+            "description": "记忆内容"
+          }
+        },
+        "required": ["task_id", "content"]
+      }
+    },
+    {
+      "name": "memory_compress",
+      "description": "压缩 L0 到 L1 短期记忆",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "task_id": {
+            "type": "string",
+            "description": "任务ID"
+          },
+          "summary": {
+            "type": "string",
+            "description": "任务摘要"
+          }
+        },
+        "required": ["task_id", "summary"]
+      }
+    },
+    {
+      "name": "memory_archive",
+      "description": "归档到 L2 长期记忆",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "category": {
+            "type": "string",
+            "description": "分类",
+            "enum": ["CEO偏好", "方法论", "避坑指南", "成功案例"]
+          },
+          "content": {
+            "type": "string",
+            "description": "归档内容"
+          }
+        },
+        "required": ["category", "content"]
+      }
+    },
+    {
+      "name": "memory_sync",
+      "description": "同步任务记忆到 MEMORY.md",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "task_id": {
+            "type": "string",
+            "description": "任务ID"
+          }
+        },
+        "required": ["task_id"]
+      }
+    },
+    {
+      "name": "config_info",
+      "description": "获取配置信息",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      }
+    }
+  ],
+  "risk_levels": {
+    "1": "可忽略 - 顺带处理",
+    "2": "低危 - 监控即可",
+    "3": "中危 - 必须有应对预案",
+    "4": "高危 - 升级处理，建议暂缓",
+    "5": "致命 - 触发停止机制"
+  },
+  "task_levels": {
+    "L1": "简单查询/执行 - <5分钟",
+    "L2": "有限判断 - 5-30分钟",
+    "L3": "多方案+风险 - 30分-2小时",
+    "L4": "战略级 - 2小时以上"
+  }
+}
