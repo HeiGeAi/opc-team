@@ -345,7 +345,10 @@ MIT
 
 ## 📧 联系方式
 
-如有问题，请联系：Blake
+如有问题，请联系：
+- **作者**: Blake
+- **微信**: 488137
+- **GitHub**: [@HeiGeAi](https://github.com/HeiGeAi)
 
 ---
 
