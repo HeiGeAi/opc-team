@@ -223,10 +223,10 @@ python3 tools/memory_sync.py sync --task-id T001
 
 ```json
 {
-  "version": "4.0.0",
+  "version": "4.2.0",
   "platform": "generic",
   "storage": {
-    "backend": "file",  // file / sqlite / redis
+    "backend": "file",  // file / sqlite
     "file_lock": true,
     "auto_backup": false
   },
