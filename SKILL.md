@@ -416,7 +416,7 @@ python3 tools/task_flow.py create --title "任务标题" --ceo-input "输入"
     "data_dir": "data"             // 数据目录（可自定义）
   },
   "storage": {
-    "backend": "file",             // 存储后端：file / sqlite / redis
+    "backend": "file",             // 存储后端：file / sqlite
     "file_lock": true              // 是否使用文件锁
   },
   "features": {

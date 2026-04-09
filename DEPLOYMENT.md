@@ -242,7 +242,7 @@ if response.choices[0].message.get("function_call"):
     ...
   },
   "storage": {
-    "backend": "file",  // file / sqlite / redis
+    "backend": "file",  // file / sqlite
     "file_lock": true,
     "auto_backup": false
   },
