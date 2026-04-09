@@ -194,6 +194,9 @@ def transition_state(task_id: str, to_state: str, actor: str):
 
 def report_progress(task_id: str, message: str, progress: int):
     """上报进度"""
+    if not 0 <= progress <= 100:
+        emit_error("进度百分比必须在 0-100 之间")
+
     config = get_config()
     backend = config.get("storage.backend", "file")
     storage = get_storage("tasks", {"backend": backend, "base_dir": config.get_path("tasks_dir")})

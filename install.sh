@@ -149,7 +149,16 @@ install_dependencies() {
 init_config() {
     echo_info "初始化配置..."
 
-    if [ ! -f "$SCRIPT_DIR/config.json" ]; then
+    if [ -n "$PLATFORM" ] && [ "$PLATFORM" != "auto" ]; then
+        TARGET_PLATFORM="$PLATFORM"
+    else
+        TARGET_PLATFORM=$(detect_platform)
+    fi
+
+    if [ "$CALLER_DIR" = "$SCRIPT_DIR" ]; then
+        run_repo_tool config init --platform "$TARGET_PLATFORM"
+        echo_success "已按平台初始化配置: $TARGET_PLATFORM"
+    elif [ ! -f "$SCRIPT_DIR/config.json" ]; then
         run_repo_tool config init --platform generic
         echo_success "已创建默认配置"
     else
@@ -235,8 +244,12 @@ install_for_platform() {
             echo_info "为 OpenClaw 安装..."
             # 支持 --agent-id 参数或交互式输入
             if [ -z "$AGENT_ID" ]; then
-                echo_info "请输入 agent ID (例如: default)"
-                read -p "输入 agent ID: " AGENT_ID
+                if [ -t 0 ]; then
+                    echo_info "请输入 agent ID (例如: default)"
+                    read -p "输入 agent ID: " AGENT_ID
+                else
+                    echo_warning "未提供 agent ID，非交互环境下默认使用 default"
+                fi
             fi
             if [ -z "$AGENT_ID" ]; then
                 AGENT_ID="default"
@@ -349,7 +362,7 @@ EOF
 # 主函数
 main() {
     echo "========================================="
-    echo "  OPC Team v4.2.1 安装程序"
+    echo "  OPC Team v4.2.2 安装程序"
     echo "========================================="
     echo ""
 

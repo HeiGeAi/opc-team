@@ -133,6 +133,9 @@ def update_risk(
     actual_impact: Optional[int] = None
 ):
     """更新风险状态"""
+    if actual_impact is not None and not 1 <= actual_impact <= 5:
+        emit_error("实际影响必须在 1-5 之间")
+
     config = get_config()
     backend = config.get("storage.backend", "file")
     storage = get_storage("risks", {"backend": backend, "base_dir": config.get_path("risks_dir")})

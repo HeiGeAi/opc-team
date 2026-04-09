@@ -12,17 +12,24 @@ runtime.py - OPC Team 统一运行时
 
 import json
 import os
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, Dict, Any
 
 from config import get_config
 
+HAS_FILELOCK = False
 try:
     import fcntl
     HAS_FCNTL = True
 except ImportError:
     HAS_FCNTL = False
+    try:
+        import filelock
+        HAS_FILELOCK = True
+    except ImportError:
+        HAS_FILELOCK = False
 
 
 # ==================== 统一输出 ====================
@@ -39,6 +46,31 @@ def emit_error(message: str, **kwargs) -> None:
     result = {"success": False, "error": message}
     result.update(kwargs)
     print(json.dumps(result, ensure_ascii=False))
+    raise SystemExit(1)
+
+
+def lock_file(file_obj, shared: bool = False):
+    """跨平台文件锁。"""
+    if HAS_FCNTL:
+        lock_type = fcntl.LOCK_SH if shared else fcntl.LOCK_EX
+        fcntl.flock(file_obj.fileno(), lock_type)
+    elif HAS_FILELOCK:
+        import filelock
+        lock_path = str(file_obj.name) + ".lock"
+        lock = filelock.FileLock(lock_path)
+        lock.acquire()
+        setattr(file_obj, "_opc_lock", lock)
+
+
+def unlock_file(file_obj):
+    """跨平台解锁。"""
+    if HAS_FCNTL:
+        fcntl.flock(file_obj.fileno(), fcntl.LOCK_UN)
+    elif HAS_FILELOCK:
+        lock = getattr(file_obj, "_opc_lock", None)
+        if lock is not None:
+            lock.release()
+            delattr(file_obj, "_opc_lock")
 
 
 # ==================== 只读模式检查 ====================
@@ -82,8 +114,7 @@ def reserve_id(prefix: str, counter_type: str) -> str:
 
     # 原子递增
     with open(counter_file, "r+") as f:
-        if HAS_FCNTL:
-            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+        lock_file(f)
         try:
             current = int(f.read().strip() or "0")
             next_id = current + 1
@@ -91,8 +122,7 @@ def reserve_id(prefix: str, counter_type: str) -> str:
             f.write(str(next_id))
             f.truncate()
         finally:
-            if HAS_FCNTL:
-                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+            unlock_file(f)
 
     return f"{prefix}{next_id:03d}"
 
@@ -179,13 +209,11 @@ def save_entity(entity_type: str, entity_id: str, data: Dict) -> None:
     file_path = storage_dir / f"{entity_id}.json"
 
     with open(file_path, "w", encoding="utf-8") as f:
-        if HAS_FCNTL:
-            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+        lock_file(f)
         try:
             json.dump(data, f, ensure_ascii=False, indent=2)
         finally:
-            if HAS_FCNTL:
-                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+            unlock_file(f)
 
 
 def load_entity(entity_type: str, entity_id: str) -> Optional[Dict]:
@@ -206,13 +234,11 @@ def load_entity(entity_type: str, entity_id: str) -> Optional[Dict]:
         return None
 
     with open(file_path, "r", encoding="utf-8") as f:
-        if HAS_FCNTL:
-            fcntl.flock(f.fileno(), fcntl.LOCK_SH)
+        lock_file(f, shared=True)
         try:
             return json.load(f)
         finally:
-            if HAS_FCNTL:
-                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+            unlock_file(f)
 
 
 def list_entities(entity_type: str) -> list:
