@@ -57,8 +57,8 @@ class Config:
     def _create_default_config(self) -> Dict:
         """创建默认配置"""
         default = {
-            "version": "4.1.0",
-            "platform": "generic",  # generic / claude_code / openclaw / cursor
+            "version": "4.2.0",
+            "platform": "generic",  # generic / claude_code / openclaw / cursor / api
             "paths": {
                 "data_dir": str(Path.cwd() / "data"),
                 "tasks_dir": "${data_dir}/tasks",
@@ -68,7 +68,7 @@ class Config:
                 "logs_dir": "${data_dir}/logs"
             },
             "storage": {
-                "backend": "file",  # file / sqlite / redis
+                "backend": "file",  # file / sqlite
                 "file_lock": True,
                 "auto_backup": False
             },
@@ -202,7 +202,7 @@ class Config:
             },
             "openclaw": {
                 "ai_platform.name": "openclaw",
-                "ai_platform.tool_prefix": "python3 scripts/",
+                "ai_platform.tool_prefix": "python3 tools/",
                 "ai_platform.supports_bash": True,
                 "ai_platform.supports_function_calling": False
             },
@@ -216,6 +216,18 @@ class Config:
             "windsurf": {
                 "ai_platform.name": "windsurf",
                 "ai_platform.tool_prefix": "",
+                "ai_platform.supports_bash": True,
+                "ai_platform.supports_function_calling": False
+            },
+            "api": {
+                "ai_platform.name": "api",
+                "ai_platform.tool_prefix": "",
+                "ai_platform.supports_bash": False,
+                "ai_platform.supports_function_calling": True
+            },
+            "generic": {
+                "ai_platform.name": "generic",
+                "ai_platform.tool_prefix": "python3 tools/",
                 "ai_platform.supports_bash": True,
                 "ai_platform.supports_function_calling": False
             }
@@ -273,7 +285,7 @@ if __name__ == "__main__":
 
     # init 命令
     init_parser = subparsers.add_parser("init", help="初始化配置文件")
-    init_parser.add_argument("--platform", help="指定平台 (claude_code/openclaw/cursor/windsurf/generic)")
+    init_parser.add_argument("--platform", help="指定平台 (claude_code/openclaw/api/cursor/windsurf/generic)")
 
     # get 命令
     get_parser = subparsers.add_parser("get", help="获取配置值")
@@ -312,8 +324,21 @@ if __name__ == "__main__":
         print(json.dumps(value, ensure_ascii=False, indent=2))
 
     elif args.command == "set":
-        config.set(args.key, args.value)
-        print(f"✅ 已设置 {args.key} = {args.value}")
+        # 自动类型解析
+        value = args.value
+        if value.lower() == "true":
+            value = True
+        elif value.lower() == "false":
+            value = False
+        elif value.isdigit():
+            value = int(value)
+        elif value.startswith("[") or value.startswith("{"):
+            try:
+                value = json.loads(value)
+            except json.JSONDecodeError:
+                pass  # 保持字符串
+        config.set(args.key, value)
+        print(f"✅ 已设置 {args.key} = {value}")
 
     elif args.command == "info":
         config.print_info()

@@ -93,10 +93,15 @@ install_dependencies() {
 init_config() {
     echo_info "初始化配置..."
 
-    PLATFORM=$(detect_platform)
-    echo_info "检测到平台: $PLATFORM"
+    # 如果用户指定了平台，使用用户指定的；否则自动检测
+    if [ -n "$PLATFORM" ] && [ "$PLATFORM" != "auto" ]; then
+        echo_info "使用指定平台: $PLATFORM"
+    else
+        PLATFORM=$(detect_platform)
+        echo_info "自动检测到平台: $PLATFORM"
+    fi
 
-    # 运行配置初始化
+    # 运行配置初始化，传递平台参数
     python3 tools/config.py init --platform "$PLATFORM"
 
     echo_success "配置初始化完成"
@@ -161,19 +166,33 @@ install_for_platform() {
             cp -r tools "$SKILL_DIR/"
             cp config.json "$SKILL_DIR/"
             echo_success "已安装到 $SKILL_DIR"
-            echo_info "在 Claude Code 中输入 '/opc' 即可使用"
+            echo_info "重启 Claude Code 后即可使用"
             ;;
 
         openclaw)
             echo_info "为 OpenClaw 安装..."
-            echo_warning "请手动指定 agent ID"
-            read -p "输入 agent ID (例如: default): " AGENT_ID
+            # 支持 --agent-id 参数或交互式输入
+            if [ -z "$AGENT_ID" ]; then
+                echo_info "请输入 agent ID (例如: default)"
+                read -p "输入 agent ID: " AGENT_ID
+            fi
+            if [ -z "$AGENT_ID" ]; then
+                AGENT_ID="default"
+            fi
             SKILL_DIR="$HOME/.openclaw/workspace-$AGENT_ID/skills/opc-team"
             mkdir -p "$SKILL_DIR"
             cp SKILL.md "$SKILL_DIR/"
             cp -r tools "$SKILL_DIR/"
             cp config.json "$SKILL_DIR/"
             echo_success "已安装到 $SKILL_DIR"
+            echo_info "Agent ID: $AGENT_ID"
+            ;;
+
+        api)
+            echo_info "为 API 模式安装..."
+            echo_info "API 模式需要通过环境变量配置"
+            echo_info "设置 OPC_API_KEY 和 OPC_API_URL 后即可使用"
+            echo_success "API 模式安装完成"
             ;;
 
         cursor)
@@ -236,15 +255,18 @@ OPC Team 安装脚本
 
 选项:
     -h, --help              显示帮助信息
-    -p, --platform PLATFORM 指定平台 (claude_code/openclaw/cursor/windsurf/generic)
+    -p, --platform PLATFORM 指定平台 (claude_code/openclaw/api/cursor/windsurf/generic)
+    -a, --agent-id ID       OpenClaw agent ID（默认: default）
     -t, --test              安装后运行测试
     --skip-env              跳过环境变量设置
     --skip-deps             跳过依赖安装
 
 示例:
-    ./install.sh                    # 自动检测平台并安装
-    ./install.sh -p claude_code     # 为 Claude Code 安装
-    ./install.sh -t                 # 安装并测试
+    ./install.sh                         # 自动检测平台并安装
+    ./install.sh -p claude_code          # 为 Claude Code 安装
+    ./install.sh -p openclaw -a default   # 为 OpenClaw 安装（指定 agent）
+    ./install.sh -p api                   # 为 API 模式安装
+    ./install.sh -t                      # 安装并测试
 
 EOF
 }
@@ -252,12 +274,13 @@ EOF
 # 主函数
 main() {
     echo "========================================="
-    echo "  OPC Team v4.1.0 安装程序"
+    echo "  OPC Team v4.2.0 安装程序"
     echo "========================================="
     echo ""
 
     # 解析参数
     PLATFORM=""
+    AGENT_ID=""
     RUN_TEST=false
     SKIP_ENV=false
     SKIP_DEPS=false
@@ -270,6 +293,10 @@ main() {
                 ;;
             -p|--platform)
                 PLATFORM="$2"
+                shift 2
+                ;;
+            -a|--agent-id)
+                AGENT_ID="$2"
                 shift 2
                 ;;
             -t|--test)
@@ -302,7 +329,7 @@ main() {
         install_dependencies
     fi
 
-    # 自动检测平台
+    # 自动检测平台（如果用户指定了 -p 则使用用户指定的）
     if [ -z "$PLATFORM" ]; then
         PLATFORM=$(detect_platform)
     fi

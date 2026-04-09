@@ -18,6 +18,7 @@ from typing import Optional, Dict, List
 import argparse
 
 from config import get_config
+from runtime import emit_json, emit_error, require_writable, log_operation
 
 
 # ==================== 工具函数 ====================
@@ -34,30 +35,11 @@ def get_memory_file() -> Path:
     return get_config().get_path("data_dir") / "MEMORY.md"
 
 
-def get_log_dir() -> Path:
-    """获取日志目录"""
-    log_dir = get_config().get_path("logs_dir")
-    log_dir.mkdir(parents=True, exist_ok=True)
-    return log_dir
-
-
 def get_decision_dir() -> Path:
     """获取决策目录"""
     decision_dir = get_config().get_path("decisions_dir")
     decision_dir.mkdir(parents=True, exist_ok=True)
     return decision_dir
-
-
-def log_operation(operation: str, details: Dict):
-    """记录操作日志"""
-    log_file = get_log_dir() / f"{datetime.now().strftime('%Y-%m-%d')}.log"
-    log_entry = {
-        "timestamp": datetime.now().isoformat(),
-        "operation": operation,
-        "details": details
-    }
-    with open(log_file, "a", encoding="utf-8") as f:
-        f.write(json.dumps(log_entry, ensure_ascii=False) + "\n")
 
 
 def load_l0_memory(task_id: str) -> List[str]:
@@ -142,20 +124,18 @@ def init_memory_system():
             "成功案例": []
         })
 
-    log_operation("init_memory_system", {"memory_file": str(memory_file)})
+    log_operation("init_memory_system", "system", "memory", {"memory_file": str(memory_file)})
 
-    print(json.dumps({
-        "success": True,
-        "memory_dir": str(get_memory_dir()),
-        "memory_file": str(memory_file),
-        "message": "记忆系统初始化成功"
-    }, ensure_ascii=False))
+    emit_json(True, memory_dir=str(get_memory_dir()), memory_file=str(memory_file), message="记忆系统初始化成功")
 
 
 # ==================== 核心功能 ====================
 
 def write_l0(task_id: str, content: str):
     """写入 L0 即时记忆"""
+    if not require_writable("写入L0"):
+        return
+
     entries = load_l0_memory(task_id)
     entries.append({
         "content": content,
@@ -163,19 +143,16 @@ def write_l0(task_id: str, content: str):
     })
     save_l0_memory(task_id, entries)
 
-    log_operation("write_l0", {"task_id": task_id})
+    log_operation("write_l0", f"L0_{task_id}", "memory", {"task_id": task_id})
 
-    print(json.dumps({
-        "success": True,
-        "level": "L0",
-        "task_id": task_id,
-        "entries_count": len(entries),
-        "message": "L0 即时记忆写入成功"
-    }, ensure_ascii=False))
+    emit_json(True, level="L0", task_id=task_id, entries_count=len(entries), message="L0 即时记忆写入成功")
 
 
 def compress_to_l1(task_id: str, summary: str):
     """压缩提纯到 L1"""
+    if not require_writable("压缩到L1"):
+        return
+
     l1_data = load_l1_memory()
 
     l1_data[task_id] = {
@@ -191,24 +168,19 @@ def compress_to_l1(task_id: str, summary: str):
     if l0_file.exists():
         l0_file.unlink()
 
-    log_operation("compress_to_l1", {"task_id": task_id})
+    log_operation("compress_to_l1", f"L1_{task_id}", "memory", {"task_id": task_id})
 
-    print(json.dumps({
-        "success": True,
-        "level": "L1",
-        "task_id": task_id,
-        "message": "L0 已压缩提纯到 L1，L0 已清理"
-    }, ensure_ascii=False))
+    emit_json(True, level="L1", task_id=task_id, message="L0 已压缩提纯到 L1，L0 已清理")
 
 
 def archive_to_l2(category: str, content: str):
     """归档到 L2 长期记忆"""
     valid_categories = ["CEO偏好", "方法论", "避坑指南", "成功案例"]
     if category not in valid_categories:
-        print(json.dumps({
-            "success": False,
-            "error": f"无效分类，必须是: {', '.join(valid_categories)}"
-        }, ensure_ascii=False))
+        emit_error(f"无效分类，必须是: {', '.join(valid_categories)}")
+        return
+
+    if not require_writable("归档到L2"):
         return
 
     l2_data = load_l2_memory()
@@ -219,70 +191,42 @@ def archive_to_l2(category: str, content: str):
     })
 
     save_l2_memory(l2_data)
-    log_operation("archive_to_l2", {"category": category})
+    log_operation("archive_to_l2", f"L2_{category}", "memory", {"category": category})
 
-    print(json.dumps({
-        "success": True,
-        "level": "L2",
-        "category": category,
-        "message": f"已归档到 L2 长期记忆 - {category}"
-    }, ensure_ascii=False))
+    emit_json(True, level="L2", category=category, message=f"已归档到 L2 长期记忆 - {category}")
 
 
 def read_memory(level: str, task_id: Optional[str] = None, category: Optional[str] = None):
     """读取记忆"""
     if level == "L0":
         if not task_id:
-            print(json.dumps({"success": False, "error": "L0 需要指定 task_id"}, ensure_ascii=False))
+            emit_error("L0 需要指定 task_id")
             return
 
         entries = load_l0_memory(task_id)
-        print(json.dumps({
-            "success": True,
-            "level": "L0",
-            "task_id": task_id,
-            "entries": entries
-        }, ensure_ascii=False))
+        emit_json(True, level="L0", task_id=task_id, entries=entries)
 
     elif level == "L1":
         l1_data = load_l1_memory()
 
         if task_id:
             result = l1_data.get(task_id)
-            print(json.dumps({
-                "success": True,
-                "level": "L1",
-                "task_id": task_id,
-                "data": result
-            }, ensure_ascii=False))
+            emit_json(True, level="L1", task_id=task_id, data=result)
         else:
-            print(json.dumps({
-                "success": True,
-                "level": "L1",
-                "data": l1_data
-            }, ensure_ascii=False))
+            emit_json(True, level="L1", data=l1_data)
 
     elif level == "L2":
         l2_data = load_l2_memory()
 
         if category:
             result = l2_data.get(category, [])
-            print(json.dumps({
-                "success": True,
-                "level": "L2",
-                "category": category,
-                "data": result
-            }, ensure_ascii=False))
+            emit_json(True, level="L2", category=category, data=result)
         else:
-            print(json.dumps({
-                "success": True,
-                "level": "L2",
-                "data": l2_data
-            }, ensure_ascii=False))
+            emit_json(True, level="L2", data=l2_data)
 
 
 def sync_to_memory_md(task_id: str):
-    """同步到 MEMORY.md"""
+    """同步到 MEMORY.md（此操作不需要只读检查，因为是同步到 MD 文件）"""
     memory_file = get_memory_file()
 
     # 读取任务相关数据
@@ -298,14 +242,7 @@ def sync_to_memory_md(task_id: str):
                 dec = json.load(f)
                 decisions.append(f"- 决策 #{dec['decision_id']}: {dec['title']} → {dec['chosen']}")
 
-    # 构建 MEMORY.md 内容
-    content = []
-
-    if memory_file.exists():
-        with open(memory_file, "r", encoding="utf-8") as f:
-            content = f.readlines()
-
-    # 添加新任务记录
+    # 构建新条目
     new_entry = f"\n## 任务 {task_id} ({datetime.now().strftime('%Y-%m-%d')})\n\n"
     new_entry += f"**摘要**: {task_summary}\n\n"
 
@@ -313,20 +250,13 @@ def sync_to_memory_md(task_id: str):
         new_entry += "**决策履历**:\n"
         new_entry += "\n".join(decisions) + "\n"
 
-    content.append(new_entry)
+    # 追加到文件
+    with open(memory_file, "a", encoding="utf-8") as f:
+        f.write(new_entry)
 
-    # 写入文件
-    with open(memory_file, "w", encoding="utf-8") as f:
-        f.writelines(content)
+    log_operation("sync_to_memory_md", task_id, "memory", {"task_id": task_id})
 
-    log_operation("sync_to_memory_md", {"task_id": task_id})
-
-    print(json.dumps({
-        "success": True,
-        "task_id": task_id,
-        "file": str(memory_file),
-        "message": f"任务 {task_id} 已同步到 MEMORY.md"
-    }, ensure_ascii=False))
+    emit_json(True, task_id=task_id, file=str(memory_file), message=f"任务 {task_id} 已同步到 MEMORY.md")
 
 
 # ==================== CLI 入口 ====================

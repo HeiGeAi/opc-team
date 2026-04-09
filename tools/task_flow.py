@@ -19,17 +19,13 @@ from typing import Optional, Dict, List
 import argparse
 
 from config import get_config
-
-try:
-    import fcntl
-    HAS_FCNTL = True
-except ImportError:
-    HAS_FCNTL = False
-    try:
-        import filelock
-        HAS_FILELOCK = True
-    except ImportError:
-        HAS_FILELOCK = False
+from runtime import (
+    emit_json, emit_error, require_writable,
+    generate_task_id, log_operation,
+    get_storage_path, save_entity, load_entity, list_entities
+)
+from storage import get_storage
+import os
 
 
 # ==================== 枚举定义 ====================
@@ -72,88 +68,17 @@ SLA_LIMITS = {
 }
 
 
-# ==================== 工具函数 ====================
-
-def get_data_dir() -> Path:
-    """获取数据目录"""
-    data_dir = get_config().get_path("tasks_dir")
-    data_dir.mkdir(parents=True, exist_ok=True)
-    return data_dir
-
-
-def get_log_dir() -> Path:
-    """获取日志目录"""
-    log_dir = get_config().get_path("logs_dir")
-    log_dir.mkdir(parents=True, exist_ok=True)
-    return log_dir
-
-
-def get_decision_dir() -> Path:
-    """获取决策目录"""
-    decision_dir = get_config().get_path("decisions_dir")
-    decision_dir.mkdir(parents=True, exist_ok=True)
-    return decision_dir
-
-
-def log_operation(operation: str, task_id: str, details: Dict):
-    """记录操作日志"""
-    log_file = get_log_dir() / f"{datetime.now().strftime('%Y-%m-%d')}.log"
-    log_entry = {
-        "timestamp": datetime.now().isoformat(),
-        "operation": operation,
-        "task_id": task_id,
-        "details": details
-    }
-    with open(log_file, "a", encoding="utf-8") as f:
-        f.write(json.dumps(log_entry, ensure_ascii=False) + "\n")
-
-
-def load_task(task_id: str) -> Optional[Dict]:
-    """加载任务（带文件锁）"""
-    task_file = get_data_dir() / f"{task_id}.json"
-    if not task_file.exists():
-        return None
-
-    with open(task_file, "r", encoding="utf-8") as f:
-        if HAS_FCNTL:
-            fcntl.flock(f.fileno(), fcntl.LOCK_SH)
-            try:
-                return json.load(f)
-            finally:
-                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
-        else:
-            return json.load(f)
-
-
-def save_task(task: Dict):
-    """保存任务（带文件锁）"""
-    task_file = get_data_dir() / f"{task['task_id']}.json"
-
-    with open(task_file, "w", encoding="utf-8") as f:
-        if HAS_FCNTL:
-            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
-            try:
-                json.dump(task, f, ensure_ascii=False, indent=2)
-            finally:
-                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
-        else:
-            json.dump(task, f, ensure_ascii=False, indent=2)
-
-
-def generate_task_id() -> str:
-    """生成任务ID"""
-    existing_tasks = list(get_data_dir().glob("T*.json"))
-    if not existing_tasks:
-        return "T001"
-
-    max_id = max([int(t.stem[1:]) for t in existing_tasks])
-    return f"T{max_id + 1:03d}"
-
-
 # ==================== 核心功能 ====================
 
 def create_task(title: str, ceo_input: str) -> str:
     """创建任务"""
+    if not require_writable("创建任务"):
+        return ""
+
+    config = get_config()
+    backend = config.get("storage.backend", "file")
+    storage = get_storage("tasks", {"backend": backend, "base_dir": config.get_path("tasks_dir")})
+
     task_id = generate_task_id()
 
     task = {
@@ -169,27 +94,29 @@ def create_task(title: str, ceo_input: str) -> str:
         "progress_log": []
     }
 
-    save_task(task)
-    log_operation("create", task_id, {"title": title})
+    storage.save(task_id, task)
+    log_operation("create", task_id, "task", {"title": title})
 
-    print(json.dumps({
-        "success": True,
-        "task_id": task_id,
-        "message": f"任务 {task_id} 创建成功"
-    }, ensure_ascii=False))
-
+    emit_json(True, task_id=task_id, message=f"任务 {task_id} 创建成功")
     return task_id
 
 
 def assess_task(task_id: str, level: str, reason: str):
     """任务定级"""
-    task = load_task(task_id)
+    config = get_config()
+    backend = config.get("storage.backend", "file")
+    storage = get_storage("tasks", {"backend": backend, "base_dir": config.get_path("tasks_dir")})
+
+    task = storage.load(task_id)
     if not task:
-        print(json.dumps({"success": False, "error": f"任务 {task_id} 不存在"}, ensure_ascii=False))
+        emit_error(f"任务 {task_id} 不存在")
         return
 
     if task["state"] != TaskState.CREATED.value:
-        print(json.dumps({"success": False, "error": f"任务状态必须是 created，当前是 {task['state']}"}, ensure_ascii=False))
+        emit_error(f"任务状态必须是 created，当前是 {task['state']}")
+        return
+
+    if not require_writable("任务定级"):
         return
 
     # 标准化 level 格式
@@ -211,43 +138,44 @@ def assess_task(task_id: str, level: str, reason: str):
         "timestamp": datetime.now().isoformat()
     })
 
-    save_task(task)
-    log_operation("assess", task_id, {"level": level, "reason": reason})
+    storage.save(task_id, task)
+    log_operation("assess", task_id, "task", {"level": level, "reason": reason})
 
-    print(json.dumps({
-        "success": True,
-        "task_id": task_id,
-        "level": level,
-        "message": f"任务 {task_id} 定级为 {level}"
-    }, ensure_ascii=False))
+    emit_json(True, task_id=task_id, level=level, message=f"任务 {task_id} 定级为 {level}")
 
 
 def transition_state(task_id: str, to_state: str, actor: str):
     """状态流转"""
-    task = load_task(task_id)
+    config = get_config()
+    backend = config.get("storage.backend", "file")
+    storage = get_storage("tasks", {"backend": backend, "base_dir": config.get_path("tasks_dir")})
+
+    task = storage.load(task_id)
     if not task:
-        print(json.dumps({"success": False, "error": f"任务 {task_id} 不存在"}, ensure_ascii=False))
+        emit_error(f"任务 {task_id} 不存在")
         return
 
     from_state = task["state"]
 
     # 验证状态转换是否合法
     if to_state not in [s.value for s in STATE_TRANSITIONS.get(TaskState(from_state), [])]:
-        print(json.dumps({
-            "success": False,
-            "error": f"非法状态转换: {from_state} -> {to_state}"
-        }, ensure_ascii=False))
+        emit_error(f"非法状态转换: {from_state} -> {to_state}")
         return
 
     # L3 任务完成前必须有决策履历
     if to_state == TaskState.COMPLETED.value and task.get("level") == TaskLevel.L3.value:
-        decisions = list(get_decision_dir().glob(f"{task_id}_*.json"))
-        if not decisions:
-            print(json.dumps({
-                "success": False,
-                "error": "L3 任务必须创建决策履历才能完成"
-            }, ensure_ascii=False))
+        decision_storage = get_storage("decisions", {
+            "backend": config.get("storage.backend", "file"),
+            "base_dir": config.get_path("decisions_dir")
+        })
+        decisions = list_entities("decisions")
+        task_decisions = [d for d in decisions if d.startswith(task_id)]
+        if not task_decisions:
+            emit_error("L3 任务必须创建决策履历才能完成")
             return
+
+    if not require_writable("状态流转"):
+        return
 
     task["state"] = to_state
     task["updated_at"] = datetime.now().isoformat()
@@ -257,23 +185,32 @@ def transition_state(task_id: str, to_state: str, actor: str):
         "timestamp": datetime.now().isoformat()
     })
 
-    save_task(task)
-    log_operation("transition", task_id, {"from": from_state, "to": to_state, "actor": actor})
+    storage.save(task_id, task)
+    log_operation("transition", task_id, "task", {"from": from_state, "to": to_state, "actor": actor})
 
-    print(json.dumps({
-        "success": True,
-        "task_id": task_id,
-        "from_state": from_state,
-        "to_state": to_state,
-        "message": f"任务 {task_id} 状态已更新"
-    }, ensure_ascii=False))
+    # 如果开启了 auto_sync_memory 且任务完成，同步到 MEMORY.md
+    if to_state == TaskState.COMPLETED.value and config.get("features.auto_sync_memory", False):
+        try:
+            from memory_sync import sync_to_memory_md
+            sync_to_memory_md(task_id)
+        except Exception:
+            pass  # 忽略同步失败
+
+    emit_json(True, task_id=task_id, from_state=from_state, to_state=to_state, message=f"任务 {task_id} 状态已更新")
 
 
 def report_progress(task_id: str, message: str, progress: int):
     """上报进度"""
-    task = load_task(task_id)
+    config = get_config()
+    backend = config.get("storage.backend", "file")
+    storage = get_storage("tasks", {"backend": backend, "base_dir": config.get_path("tasks_dir")})
+
+    task = storage.load(task_id)
     if not task:
-        print(json.dumps({"success": False, "error": f"任务 {task_id} 不存在"}, ensure_ascii=False))
+        emit_error(f"任务 {task_id} 不存在")
+        return
+
+    if not require_writable("进度上报"):
         return
 
     task["progress"] = progress
@@ -284,54 +221,56 @@ def report_progress(task_id: str, message: str, progress: int):
         "timestamp": datetime.now().isoformat()
     })
 
-    save_task(task)
-    log_operation("progress", task_id, {"message": message, "progress": progress})
+    storage.save(task_id, task)
+    log_operation("progress", task_id, "task", {"message": message, "progress": progress})
 
     # 生成进度条
     bar_length = 10
     filled = int(bar_length * progress / 100)
     bar = "▓" * filled + "░" * (bar_length - filled)
 
-    print(json.dumps({
-        "success": True,
-        "task_id": task_id,
-        "progress": progress,
-        "bar": f"{bar} {progress}%",
-        "message": message
-    }, ensure_ascii=False))
+    emit_json(True, task_id=task_id, progress=progress, bar=f"{bar} {progress}%", message=message)
 
 
 def get_status(task_id: str):
     """查询任务状态"""
-    task = load_task(task_id)
+    config = get_config()
+    backend = config.get("storage.backend", "file")
+    storage = get_storage("tasks", {"backend": backend, "base_dir": config.get_path("tasks_dir")})
+
+    task = storage.load(task_id)
     if not task:
-        print(json.dumps({"success": False, "error": f"任务 {task_id} 不存在"}, ensure_ascii=False))
+        emit_error(f"任务 {task_id} 不存在")
         return
 
-    # 检查 SLA
+    # SLA 检查
     created_at = datetime.fromisoformat(task["created_at"])
     elapsed = datetime.now() - created_at
     level = TaskLevel(task["level"]) if task["level"] else None
     sla_limit = SLA_LIMITS.get(level) if level else None
     sla_status = "正常"
 
-    if sla_limit and elapsed > sla_limit:
-        if elapsed > sla_limit * 2:
-            sla_status = "严重超期"
-        else:
-            sla_status = "超期"
+    if config.get("features.sla_check_enabled", True) and sla_limit:
+        if elapsed > sla_limit:
+            if elapsed > sla_limit * 2:
+                sla_status = "严重超期"
+            else:
+                sla_status = "超期"
 
-    print(json.dumps({
-        "success": True,
-        "task": task,
-        "elapsed_minutes": int(elapsed.total_seconds() / 60),
-        "sla_status": sla_status
-    }, ensure_ascii=False, indent=2))
+    emit_json(True, task=task, elapsed_minutes=int(elapsed.total_seconds() / 60), sla_status=sla_status)
 
 
 def check_sla(task_id: str):
     """检查 SLA 并自动升级"""
-    task = load_task(task_id)
+    config = get_config()
+
+    if not config.get("features.sla_check_enabled", True):
+        return
+
+    backend = config.get("storage.backend", "file")
+    storage = get_storage("tasks", {"backend": backend, "base_dir": config.get_path("tasks_dir")})
+
+    task = storage.load(task_id)
     if not task:
         return
 
@@ -349,6 +288,9 @@ def check_sla(task_id: str):
 
     if elapsed > sla_limit * 2:
         # 超期 2 倍，自动升级
+        if not require_writable("SLA 自动升级"):
+            return
+
         task["state"] = TaskState.ESCALATED.value
         task["updated_at"] = datetime.now().isoformat()
         task["actors"].append({
@@ -357,15 +299,10 @@ def check_sla(task_id: str):
             "reason": f"SLA 超期 {int(elapsed.total_seconds() / 60)} 分钟",
             "timestamp": datetime.now().isoformat()
         })
-        save_task(task)
-        log_operation("escalate", task_id, {"reason": "SLA超期"})
+        storage.save(task_id, task)
+        log_operation("escalate", task_id, "task", {"reason": "SLA超期"})
 
-        print(json.dumps({
-            "success": True,
-            "task_id": task_id,
-            "action": "escalated",
-            "message": f"任务 {task_id} 因 SLA 超期已自动升级"
-        }, ensure_ascii=False))
+        emit_json(True, task_id=task_id, action="escalated", message=f"任务 {task_id} 因 SLA 超期已自动升级")
 
 
 # ==================== CLI 入口 ====================

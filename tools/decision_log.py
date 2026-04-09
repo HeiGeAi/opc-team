@@ -17,84 +17,12 @@ from typing import Optional, Dict, List
 import argparse
 
 from config import get_config
-
-try:
-    import fcntl
-    HAS_FCNTL = True
-except ImportError:
-    HAS_FCNTL = False
-
-
-# ==================== 工具函数 ====================
-
-def get_decision_dir() -> Path:
-    """获取决策目录"""
-    decision_dir = get_config().get_path("decisions_dir")
-    decision_dir.mkdir(parents=True, exist_ok=True)
-    return decision_dir
-
-
-def get_log_dir() -> Path:
-    """获取日志目录"""
-    log_dir = get_config().get_path("logs_dir")
-    log_dir.mkdir(parents=True, exist_ok=True)
-    return log_dir
-
-
-def log_operation(operation: str, decision_id: str, details: Dict):
-    """记录操作日志"""
-    log_file = get_log_dir() / f"{datetime.now().strftime('%Y-%m-%d')}.log"
-    log_entry = {
-        "timestamp": datetime.now().isoformat(),
-        "operation": operation,
-        "decision_id": decision_id,
-        "details": details
-    }
-    with open(log_file, "a", encoding="utf-8") as f:
-        f.write(json.dumps(log_entry, ensure_ascii=False) + "\n")
-
-
-def load_decision(decision_id: str) -> Optional[Dict]:
-    """加载决策（带文件锁）"""
-    decision_files = list(get_decision_dir().glob(f"*_{decision_id}.json"))
-    if not decision_files:
-        return None
-
-    decision_file = decision_files[0]
-    with open(decision_file, "r", encoding="utf-8") as f:
-        if HAS_FCNTL:
-            fcntl.flock(f.fileno(), fcntl.LOCK_SH)
-            try:
-                return json.load(f)
-            finally:
-                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
-        else:
-            return json.load(f)
-
-
-def save_decision(decision: Dict):
-    """保存决策（带文件锁）"""
-    decision_file = get_decision_dir() / f"{decision['task_id']}_{decision['decision_id']}.json"
-
-    with open(decision_file, "w", encoding="utf-8") as f:
-        if HAS_FCNTL:
-            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
-            try:
-                json.dump(decision, f, ensure_ascii=False, indent=2)
-            finally:
-                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
-        else:
-            json.dump(decision, f, ensure_ascii=False, indent=2)
-
-
-def generate_decision_id() -> str:
-    """生成决策ID"""
-    existing_decisions = list(get_decision_dir().glob("*_D*.json"))
-    if not existing_decisions:
-        return "D001"
-
-    max_id = max([int(f.stem.split("_")[1][1:]) for f in existing_decisions])
-    return f"D{max_id + 1:03d}"
+from runtime import (
+    emit_json, emit_error, require_writable,
+    generate_decision_id, log_operation,
+    get_storage_path
+)
+from storage import get_storage
 
 
 def parse_assumptions(assumptions_str: str) -> List[Dict]:
@@ -126,6 +54,9 @@ def create_decision(
     assumptions: str
 ):
     """创建决策履历"""
+    if not require_writable("创建决策"):
+        return
+
     if not decision_id:
         decision_id = generate_decision_id()
 
@@ -144,16 +75,16 @@ def create_decision(
         "updated_at": datetime.now().isoformat()
     }
 
-    save_decision(decision)
-    log_operation("create", decision_id, {"task_id": task_id, "title": title})
+    # 使用 task_id_decision_id 作为存储键
+    storage_key = f"{task_id}_{decision_id}"
+    config = get_config()
+    backend = config.get("storage.backend", "file")
+    storage = get_storage("decisions", {"backend": backend, "base_dir": config.get_path("decisions_dir")})
+    storage.save(storage_key, decision)
 
-    print(json.dumps({
-        "success": True,
-        "decision_id": decision_id,
-        "task_id": task_id,
-        "message": f"决策履历 #{decision_id} 创建成功",
-        "assumptions_count": len(decision["assumptions"])
-    }, ensure_ascii=False))
+    log_operation("create", decision_id, "decision", {"task_id": task_id, "title": title})
+
+    emit_json(True, decision_id=decision_id, task_id=task_id, message=f"决策履历 #{decision_id} 创建成功", assumptions_count=len(decision["assumptions"]))
 
 
 def update_assumption(
@@ -164,15 +95,31 @@ def update_assumption(
     trigger_review: bool = False
 ):
     """更新假设验证状态"""
-    decision = load_decision(decision_id)
+    config = get_config()
+    backend = config.get("storage.backend", "file")
+    storage = get_storage("decisions", {"backend": backend, "base_dir": config.get_path("decisions_dir")})
+
+    # 查找决策（遍历找到 decision_id）
+    all_keys = storage.list("*_D*.json")
+    decision_key = None
+    decision = None
+    for key in all_keys:
+        if key.endswith(f"_{decision_id}.json"):
+            decision_key = key
+            decision = storage.load(key.replace(".json", ""))
+            break
+
     if not decision:
-        print(json.dumps({"success": False, "error": f"决策 {decision_id} 不存在"}, ensure_ascii=False))
+        emit_error(f"决策 {decision_id} 不存在")
         return
 
     # 查找假设
     assumption = next((a for a in decision["assumptions"] if a["id"] == assumption_id), None)
     if not assumption:
-        print(json.dumps({"success": False, "error": f"假设 {assumption_id} 不存在"}, ensure_ascii=False))
+        emit_error(f"假设 {assumption_id} 不存在")
+        return
+
+    if not require_writable("更新假设"):
         return
 
     assumption["status"] = status
@@ -180,16 +127,15 @@ def update_assumption(
     assumption["verified_at"] = datetime.now().isoformat()
 
     decision["updated_at"] = datetime.now().isoformat()
+    storage.save(decision_key.replace(".json", ""), decision)
 
-    save_decision(decision)
-    log_operation("update_assumption", decision_id, {
+    log_operation("update_assumption", decision_id, "decision", {
         "assumption_id": assumption_id,
         "status": status,
         "trigger_review": trigger_review
     })
 
-    result = {
-        "success": True,
+    result_data = {
         "decision_id": decision_id,
         "assumption_id": assumption_id,
         "status": status,
@@ -197,10 +143,10 @@ def update_assumption(
     }
 
     if trigger_review:
-        result["alert"] = "⚠️ 假设被证伪，必须在48小时内重新评估决策"
-        result["action_required"] = "调用 task_flow.py 创建重审任务"
+        result_data["alert"] = "⚠️ 假设被证伪，必须在48小时内重新评估决策"
+        result_data["action_required"] = "调用 task_flow.py 创建重审任务"
 
-    print(json.dumps(result, ensure_ascii=False))
+    emit_json(True, **result_data)
 
 
 def backfill_result(
@@ -210,9 +156,25 @@ def backfill_result(
     lessons: Optional[str] = None
 ):
     """回填决策结果"""
-    decision = load_decision(decision_id)
+    config = get_config()
+    backend = config.get("storage.backend", "file")
+    storage = get_storage("decisions", {"backend": backend, "base_dir": config.get_path("decisions_dir")})
+
+    # 查找决策
+    all_keys = storage.list("*_D*.json")
+    decision_key = None
+    decision = None
+    for key in all_keys:
+        if key.endswith(f"_{decision_id}.json"):
+            decision_key = key
+            decision = storage.load(key.replace(".json", ""))
+            break
+
     if not decision:
-        print(json.dumps({"success": False, "error": f"决策 {decision_id} 不存在"}, ensure_ascii=False))
+        emit_error(f"决策 {decision_id} 不存在")
+        return
+
+    if not require_writable("回填结果"):
         return
 
     decision["result"] = {
@@ -224,50 +186,54 @@ def backfill_result(
     decision["backfilled_at"] = datetime.now().isoformat()
     decision["updated_at"] = datetime.now().isoformat()
 
-    save_decision(decision)
-    log_operation("backfill", decision_id, {"result": result})
+    storage.save(decision_key.replace(".json", ""), decision)
+    log_operation("backfill", decision_id, "decision", {"result": result})
 
-    print(json.dumps({
-        "success": True,
-        "decision_id": decision_id,
-        "message": f"决策 #{decision_id} 结果已回填"
-    }, ensure_ascii=False))
+    emit_json(True, decision_id=decision_id, message=f"决策 #{decision_id} 结果已回填")
 
 
 def get_decision(decision_id: str):
     """查询决策"""
-    decision = load_decision(decision_id)
+    config = get_config()
+    backend = config.get("storage.backend", "file")
+    storage = get_storage("decisions", {"backend": backend, "base_dir": config.get_path("decisions_dir")})
+
+    # 查找决策
+    all_keys = storage.list("*_D*.json")
+    decision = None
+    for key in all_keys:
+        if key.endswith(f"_{decision_id}.json"):
+            decision = storage.load(key.replace(".json", ""))
+            break
+
     if not decision:
-        print(json.dumps({"success": False, "error": f"决策 {decision_id} 不存在"}, ensure_ascii=False))
+        emit_error(f"决策 {decision_id} 不存在")
         return
 
-    print(json.dumps({
-        "success": True,
-        "decision": decision
-    }, ensure_ascii=False, indent=2))
+    emit_json(True, decision=decision)
 
 
 def list_decisions(task_id: Optional[str] = None):
     """列出决策"""
-    decision_dir = get_decision_dir()
+    config = get_config()
+    backend = config.get("storage.backend", "file")
+    storage = get_storage("decisions", {"backend": backend, "base_dir": config.get_path("decisions_dir")})
 
-    if task_id:
-        decision_files = list(decision_dir.glob(f"{task_id}_*.json"))
-    else:
-        decision_files = list(decision_dir.glob("*_D*.json"))
-
+    all_keys = storage.list("*_D*.json")
     decisions = []
-    for f in decision_files:
-        with open(f, "r", encoding="utf-8") as file:
-            decisions.append(json.load(file))
+
+    for key in all_keys:
+        # key 格式: task_id_decision_id.json
+        key_without_ext = key.replace(".json", "")
+        if "_D" in key_without_ext:
+            decision = storage.load(key_without_ext)
+            if decision:
+                if task_id is None or decision.get("task_id") == task_id:
+                    decisions.append(decision)
 
     decisions.sort(key=lambda d: d["created_at"], reverse=True)
 
-    print(json.dumps({
-        "success": True,
-        "count": len(decisions),
-        "decisions": decisions
-    }, ensure_ascii=False, indent=2))
+    emit_json(True, count=len(decisions), decisions=decisions)
 
 
 # ==================== CLI 入口 ====================

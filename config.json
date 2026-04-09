@@ -1,5 +1,5 @@
 {
-  "version": "4.0.0",
+  "version": "4.2.0",
   "platform": "generic",
   "paths": {
     "data_dir": "data",
@@ -21,7 +21,7 @@
     "risk_alert_threshold": 3
   },
   "ai_platform": {
-    "name": "claude_code",
+    "name": "generic",
     "tool_prefix": "python3 tools/",
     "supports_bash": true,
     "supports_function_calling": false
@@ -34,23 +34,28 @@
     },
     "openclaw": {
       "skill_path": "~/.openclaw/workspace-{agent}/skills/opc-team/SKILL.md",
-      "tool_prefix": "python3 scripts/",
+      "tool_prefix": "python3 tools/",
       "supports_bash": true
     },
     "cursor": {
       "skill_path": ".cursorrules",
-      "tool_prefix": "python3 tools/",
-      "supports_bash": true
+      "tool_prefix": "",
+      "supports_bash": false
     },
     "windsurf": {
       "skill_path": ".windsurfrules",
-      "tool_prefix": "python3 tools/",
+      "tool_prefix": "",
       "supports_bash": true
     },
     "api": {
       "skill_path": null,
-      "tool_prefix": null,
+      "tool_prefix": "",
       "supports_function_calling": true
+    },
+    "generic": {
+      "skill_path": null,
+      "tool_prefix": "python3 tools/",
+      "supports_bash": true
     }
   }
 }

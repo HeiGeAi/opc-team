@@ -58,13 +58,13 @@ python3 tools/task_flow.py create --title "测试" --ceo-input "测试安装"
 ```
 
 **使用方式**：
-- 在 Claude Code 中输入 `/opc` 或说"用 opc-team 评估"
+- 在 Claude Code 中直接下达自然语言指令
 - Claude 会自动加载 SKILL.md 并执行
 
 **验证**：
 ```bash
 # 在 Claude Code 中
-/opc 评估知识付费可行性
+评估知识付费可行性
 ```
 
 ---
@@ -75,8 +75,8 @@ python3 tools/task_flow.py create --title "测试" --ceo-input "测试安装"
 
 **安装步骤**：
 ```bash
-./install.sh -p openclaw
-# 输入你的 agent ID（例如：default）
+./install.sh -p openclaw -a <agent-id>
+# 例如: ./install.sh -p openclaw -a default
 ```
 
 **使用方式**：

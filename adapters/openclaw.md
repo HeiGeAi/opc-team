@@ -82,25 +82,11 @@ OPC Team 是一个专门负责商业决策的部门，由 COO 魏明远领导。
 
 ---
 
-## 看板集成
-
-如果你使用 Edict 的看板系统，可以将 opc-team 的任务同步到看板：
-
-```bash
-# 创建任务后
-python3 scripts/kanban_update.py create \
-  --task-id "OPC-T001" \
-  --title "评估知识付费可行性" \
-  --state "Doing"
-```
-
----
-
 ## 常见问题
 
 ### Q: 如何指定 agent ID？
 
-A: 安装时会提示输入，或者手动复制到对应目录。
+A: 使用 `./install.sh -p openclaw -a <agent-id>` 安装。
 
 ### Q: 可以在多个 agent 中使用吗？
 
@@ -116,5 +102,4 @@ A: 在 SKILL.md 中可以引用其他 skills，OpenClaw 会自动协调。
 
 1. **Agent 隔离**：为不同项目创建不同的 agent
 2. **Skill 组合**：将 opc-team 与其他 skills 组合使用
-3. **看板同步**：将任务同步到 Edict 看板，便于追踪
-4. **日志监控**：定期查看 `data/logs/` 了解执行情况
+3. **日志监控**：定期查看 `data/logs/` 了解执行情况

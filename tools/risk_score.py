@@ -16,12 +16,11 @@ from typing import Optional, Dict, List
 import argparse
 
 from config import get_config
-
-try:
-    import fcntl
-    HAS_FCNTL = True
-except ImportError:
-    HAS_FCNTL = False
+from runtime import (
+    emit_json, emit_error, require_writable,
+    generate_risk_id, log_operation
+)
+from storage import get_storage
 
 
 # ==================== 风险评分矩阵 ====================
@@ -54,78 +53,6 @@ RISK_LEVEL_DESC = {
 }
 
 
-# ==================== 工具函数 ====================
-
-def get_risk_dir() -> Path:
-    """获取风险目录"""
-    risk_dir = get_config().get_path("risks_dir")
-    risk_dir.mkdir(parents=True, exist_ok=True)
-    return risk_dir
-
-
-def get_log_dir() -> Path:
-    """获取日志目录"""
-    log_dir = get_config().get_path("logs_dir")
-    log_dir.mkdir(parents=True, exist_ok=True)
-    return log_dir
-
-
-def log_operation(operation: str, risk_id: str, details: Dict):
-    """记录操作日志"""
-    log_file = get_log_dir() / f"{datetime.now().strftime('%Y-%m-%d')}.log"
-    log_entry = {
-        "timestamp": datetime.now().isoformat(),
-        "operation": operation,
-        "risk_id": risk_id,
-        "details": details
-    }
-    with open(log_file, "a", encoding="utf-8") as f:
-        f.write(json.dumps(log_entry, ensure_ascii=False) + "\n")
-
-
-def load_risk(risk_id: str) -> Optional[Dict]:
-    """加载风险（带文件锁）"""
-    risk_files = list(get_risk_dir().glob(f"*_{risk_id}.json"))
-    if not risk_files:
-        return None
-
-    risk_file = risk_files[0]
-    with open(risk_file, "r", encoding="utf-8") as f:
-        if HAS_FCNTL:
-            fcntl.flock(f.fileno(), fcntl.LOCK_SH)
-            try:
-                return json.load(f)
-            finally:
-                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
-        else:
-            return json.load(f)
-
-
-def save_risk(risk: Dict):
-    """保存风险（带文件锁）"""
-    risk_file = get_risk_dir() / f"{risk['task_id']}_{risk['risk_id']}.json"
-
-    with open(risk_file, "w", encoding="utf-8") as f:
-        if HAS_FCNTL:
-            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
-            try:
-                json.dump(risk, f, ensure_ascii=False, indent=2)
-            finally:
-                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
-        else:
-            json.dump(risk, f, ensure_ascii=False, indent=2)
-
-
-def generate_risk_id() -> str:
-    """生成风险ID"""
-    existing_risks = list(get_risk_dir().glob("*_R*.json"))
-    if not existing_risks:
-        return "R001"
-
-    max_id = max([int(f.stem.split("_")[1][1:]) for f in existing_risks])
-    return f"R{max_id + 1:03d}"
-
-
 # ==================== 核心功能 ====================
 
 def assess_risk(
@@ -137,11 +64,15 @@ def assess_risk(
 ):
     """评估风险"""
     if not (1 <= probability <= 5 and 1 <= impact <= 5):
-        print(json.dumps({
-            "success": False,
-            "error": "概率和影响必须在 1-5 之间"
-        }, ensure_ascii=False))
+        emit_error("概率和影响必须在 1-5 之间")
         return
+
+    if not require_writable("评估风险"):
+        return
+
+    config = get_config()
+    backend = config.get("storage.backend", "file")
+    storage = get_storage("risks", {"backend": backend, "base_dir": config.get_path("risks_dir")})
 
     risk_id = generate_risk_id()
     risk_level = calculate_risk_level(probability, impact)
@@ -161,15 +92,17 @@ def assess_risk(
         "updated_at": datetime.now().isoformat()
     }
 
-    save_risk(risk)
-    log_operation("assess", risk_id, {
+    # 使用 task_id_risk_id 作为存储键
+    storage_key = f"{task_id}_{risk_id}"
+    storage.save(storage_key, risk)
+
+    log_operation("assess", risk_id, "risk", {
         "task_id": task_id,
         "name": risk_name,
         "level": risk_level
     })
 
-    result = {
-        "success": True,
+    result_data = {
         "risk_id": risk_id,
         "task_id": task_id,
         "level": risk_level,
@@ -177,13 +110,14 @@ def assess_risk(
         "message": f"风险 {risk_id} 评估完成，等级 {risk_level}"
     }
 
-    # 高危及以上风险触发警告
-    if risk_level >= 4:
-        result["alert"] = f"⚠️ {RISK_LEVEL_DESC[risk_level]}"
+    # 高危及以上风险触发警告（检查 risk_alert_threshold）
+    threshold = config.get("features.risk_alert_threshold", 3)
+    if risk_level >= threshold:
+        result_data["alert"] = f"⚠️ {RISK_LEVEL_DESC[risk_level]}"
         if not mitigation:
-            result["warning"] = "高危风险必须提供应对预案"
+            result_data["warning"] = "高危风险必须提供应对预案"
 
-    print(json.dumps(result, ensure_ascii=False))
+    emit_json(True, **result_data)
 
 
 def update_risk(
@@ -192,9 +126,25 @@ def update_risk(
     actual_impact: Optional[int] = None
 ):
     """更新风险状态"""
-    risk = load_risk(risk_id)
+    config = get_config()
+    backend = config.get("storage.backend", "file")
+    storage = get_storage("risks", {"backend": backend, "base_dir": config.get_path("risks_dir")})
+
+    # 查找风险
+    all_keys = storage.list("*_R*.json")
+    risk_key = None
+    risk = None
+    for key in all_keys:
+        if key.endswith(f"_{risk_id}.json"):
+            risk_key = key.replace(".json", "")
+            risk = storage.load(risk_key)
+            break
+
     if not risk:
-        print(json.dumps({"success": False, "error": f"风险 {risk_id} 不存在"}, ensure_ascii=False))
+        emit_error(f"风险 {risk_id} 不存在")
+        return
+
+    if not require_writable("更新风险"):
         return
 
     risk["status"] = status
@@ -202,11 +152,10 @@ def update_risk(
         risk["actual_impact"] = actual_impact
     risk["updated_at"] = datetime.now().isoformat()
 
-    save_risk(risk)
-    log_operation("update", risk_id, {"status": status, "actual_impact": actual_impact})
+    storage.save(risk_key, risk)
+    log_operation("update", risk_id, "risk", {"status": status, "actual_impact": actual_impact})
 
-    result = {
-        "success": True,
+    result_data = {
         "risk_id": risk_id,
         "status": status,
         "message": f"风险 {risk_id} 状态更新为 {status}"
@@ -216,63 +165,59 @@ def update_risk(
     if status == "已发生" and actual_impact is not None:
         predicted_impact = risk["impact"]
         if actual_impact > predicted_impact:
-            result["alert"] = f"⚠️ 实际影响 ({actual_impact}) 超过预期 ({predicted_impact})"
+            result_data["alert"] = f"⚠️ 实际影响 ({actual_impact}) 超过预期 ({predicted_impact})"
         elif actual_impact < predicted_impact:
-            result["note"] = f"✅ 实际影响 ({actual_impact}) 低于预期 ({predicted_impact})，应对有效"
+            result_data["note"] = f"✅ 实际影响 ({actual_impact}) 低于预期 ({predicted_impact})，应对有效"
 
-    print(json.dumps(result, ensure_ascii=False))
+    emit_json(True, **result_data)
 
 
 def list_risks(task_id: str, min_level: Optional[int] = None):
     """列出任务的所有风险"""
-    risk_files = list(get_risk_dir().glob(f"{task_id}_*.json"))
+    config = get_config()
+    backend = config.get("storage.backend", "file")
+    storage = get_storage("risks", {"backend": backend, "base_dir": config.get_path("risks_dir")})
 
-    if not risk_files:
-        print(json.dumps({
-            "success": True,
-            "task_id": task_id,
-            "risks": [],
-            "message": f"任务 {task_id} 暂无风险记录"
-        }, ensure_ascii=False))
-        return
+    all_keys = storage.list(f"{task_id}_*.json")
 
     risks = []
-    for risk_file in risk_files:
-        with open(risk_file, "r", encoding="utf-8") as f:
-            risk = json.load(f)
-            if min_level is None or risk["level"] >= min_level:
-                risks.append({
-                    "risk_id": risk["risk_id"],
-                    "name": risk["name"],
-                    "level": risk["level"],
-                    "level_desc": risk["level_desc"],
-                    "status": risk["status"],
-                    "mitigation": risk["mitigation"]
-                })
+    for key in all_keys:
+        risk = storage.load(key.replace(".json", ""))
+        if risk and (min_level is None or risk["level"] >= min_level):
+            risks.append({
+                "risk_id": risk["risk_id"],
+                "name": risk["name"],
+                "level": risk["level"],
+                "level_desc": risk["level_desc"],
+                "status": risk["status"],
+                "mitigation": risk["mitigation"]
+            })
 
     # 按风险等级降序排序
     risks.sort(key=lambda x: x["level"], reverse=True)
 
-    print(json.dumps({
-        "success": True,
-        "task_id": task_id,
-        "risks": risks,
-        "total": len(risks),
-        "high_risk_count": len([r for r in risks if r["level"] >= 4])
-    }, ensure_ascii=False, indent=2))
+    emit_json(True, task_id=task_id, risks=risks, total=len(risks), high_risk_count=len([r for r in risks if r["level"] >= 4]))
 
 
 def get_risk(risk_id: str):
     """获取风险详情"""
-    risk = load_risk(risk_id)
+    config = get_config()
+    backend = config.get("storage.backend", "file")
+    storage = get_storage("risks", {"backend": backend, "base_dir": config.get_path("risks_dir")})
+
+    # 查找风险
+    all_keys = storage.list("*_R*.json")
+    risk = None
+    for key in all_keys:
+        if key.endswith(f"_{risk_id}.json"):
+            risk = storage.load(key.replace(".json", ""))
+            break
+
     if not risk:
-        print(json.dumps({"success": False, "error": f"风险 {risk_id} 不存在"}, ensure_ascii=False))
+        emit_error(f"风险 {risk_id} 不存在")
         return
 
-    print(json.dumps({
-        "success": True,
-        "risk": risk
-    }, ensure_ascii=False, indent=2))
+    emit_json(True, risk=risk)
 
 
 # ==================== CLI 入口 ====================
