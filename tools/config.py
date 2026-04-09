@@ -57,7 +57,7 @@ class Config:
     def _create_default_config(self) -> Dict:
         """创建默认配置"""
         default = {
-            "version": "4.2.0",
+            "version": "4.2.1",
             "platform": "generic",  # generic / claude_code / openclaw / cursor / api
             "paths": {
                 "data_dir": str(Path.cwd() / "data"),
@@ -192,6 +192,8 @@ class Config:
         """适配到特定平台"""
         if platform is None:
             platform = self.detect_platform()
+
+        self.set("platform", platform)
 
         platform_configs = {
             "claude_code": {

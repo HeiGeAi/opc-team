@@ -72,6 +72,17 @@ sync_project_bundle() {
     )
 }
 
+init_bundle_config() {
+    local bundle_dir="$1"
+    local bundle_platform="$2"
+
+    (
+        cd "$bundle_dir"
+        python3 tools/config.py init --platform "$bundle_platform" >/dev/null
+        python3 tools/memory_sync.py init >/dev/null
+    )
+}
+
 # 检测操作系统
 detect_os() {
     if [[ "$OSTYPE" == "linux-gnu"* ]]; then
@@ -211,6 +222,7 @@ install_for_platform() {
             mkdir -p "$SKILL_DIR/tools"
             cp "$SCRIPT_DIR"/tools/*.py "$SKILL_DIR/tools/"
             cp "$SCRIPT_DIR/config.json" "$SKILL_DIR/"
+            init_bundle_config "$SKILL_DIR" "claude_code"
             write_adapted_skill \
                 "$SKILL_DIR/SKILL.md" \
                 "$(printf '%q' "$SKILL_DIR/config.json")" \
@@ -234,6 +246,7 @@ install_for_platform() {
             mkdir -p "$SKILL_DIR/tools"
             cp "$SCRIPT_DIR"/tools/*.py "$SKILL_DIR/tools/"
             cp "$SCRIPT_DIR/config.json" "$SKILL_DIR/"
+            init_bundle_config "$SKILL_DIR" "openclaw"
             write_adapted_skill \
                 "$SKILL_DIR/SKILL.md" \
                 "$(printf '%q' "$SKILL_DIR/config.json")" \
@@ -336,7 +349,7 @@ EOF
 # 主函数
 main() {
     echo "========================================="
-    echo "  OPC Team v4.2.0 安装程序"
+    echo "  OPC Team v4.2.1 安装程序"
     echo "========================================="
     echo ""
 

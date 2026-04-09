@@ -1,6 +1,6 @@
-# OPC Team - 跨平台通用版 v4.2.0
+# OPC Team - 跨平台通用版 v4.2.1
 
-**版本**: v4.2.0 Universal Edition
+**版本**: v4.2.1 Universal Edition
 **类型**: 跨平台 Agent 协作框架
 
 ---
@@ -223,7 +223,7 @@ python3 tools/memory_sync.py sync --task-id T001
 
 ```json
 {
-  "version": "4.2.0",
+  "version": "4.2.1",
   "platform": "generic",
   "storage": {
     "backend": "file",  // file / sqlite
@@ -322,6 +322,7 @@ python3 tools/memory_sync.py sync --task-id T001
 
 ## 🔄 版本历史
 
+- **v4.2.1** (2026-04-09): 修复 readonly_mode 写入穿透、平台安装后配置未适配、版本号治理
 - **v4.2.0** (2026-04-09): 用户反馈优化版 - 修复并发ID撞号、-p参数覆盖、只读模式、auto_sync_memory、文档降噪
 - **v4.1.0** (2026-04-08): 修复安装链路、路径配置、storage bug、SKILL.md args
 - **v4.0.0** (2026-04-08): 跨平台通用版，支持多平台、配置系统、存储抽象层

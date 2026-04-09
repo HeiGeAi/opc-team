@@ -226,7 +226,10 @@ def read_memory(level: str, task_id: Optional[str] = None, category: Optional[st
 
 
 def sync_to_memory_md(task_id: str):
-    """同步到 MEMORY.md（此操作不需要只读检查，因为是同步到 MD 文件）"""
+    """同步到 MEMORY.md。"""
+    if not require_writable("同步记忆"):
+        return
+
     memory_file = get_memory_file()
 
     # 读取任务相关数据
