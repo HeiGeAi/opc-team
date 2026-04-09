@@ -426,27 +426,13 @@ python3 tools/config.py set storage.auto_backup true
 
 v3.0.0 是纯文档版本，没有数据需要迁移。直接安装 v4.0.0 即可。
 
-### 数据导出
+### 数据备份
+
+当前版本还没有内置 `import/export` 子命令，直接备份 `data/` 目录即可：
 
 ```bash
-# 导出所有任务
-python3 tools/task_flow.py export --output tasks.json
-
-# 导出所有决策
-python3 tools/decision_log.py export --output decisions.json
-
-# 导出记忆
-cp data/MEMORY.md backup/MEMORY.md
-```
-
-### 数据导入
-
-```bash
-# 导入任务
-python3 tools/task_flow.py import --input tasks.json
-
-# 导入决策
-python3 tools/decision_log.py import --input decisions.json
+mkdir -p backup
+cp -R data backup/data
 ```
 
 ---
@@ -532,6 +518,6 @@ python3 tools/config.py set storage.backend sqlite
 ## 获取帮助
 
 - 查看日志：`cat data/logs/$(date +%Y-%m-%d).log`
-- 查看配置：`python3 tools/config.py show`
+- 查看配置：`python3 tools/config.py info`
 - 运行测试：`./install.sh -t`
 - 提交 Issue：https://github.com/your-repo/opc-team/issues

@@ -10,17 +10,14 @@ decision_log.py - OPC Team 决策履历管理
 - 触发假设证伪重审
 """
 
-import json
 from datetime import datetime
-from pathlib import Path
-from typing import Optional, Dict, List
+from typing import Optional, Dict, List, Tuple
 import argparse
 
 from config import get_config
 from runtime import (
     emit_json, emit_error, require_writable,
-    generate_decision_id, log_operation,
-    get_storage_path
+    generate_decision_id, log_operation
 )
 from storage import get_storage
 
@@ -40,6 +37,15 @@ def parse_assumptions(assumptions_str: str) -> List[Dict]:
                 "verified_at": None
             })
     return assumptions
+
+
+def load_decision_by_id(storage, decision_id: str) -> Tuple[Optional[str], Optional[Dict]]:
+    """按决策 ID 查找存储键和内容。"""
+    for key in storage.list(f"*_{decision_id}"):
+        decision = storage.load(key)
+        if decision:
+            return key, decision
+    return None, None
 
 
 # ==================== 核心功能 ====================
@@ -99,15 +105,7 @@ def update_assumption(
     backend = config.get("storage.backend", "file")
     storage = get_storage("decisions", {"backend": backend, "base_dir": config.get_path("decisions_dir")})
 
-    # 查找决策（遍历找到 decision_id）
-    all_keys = storage.list("*_D*.json")
-    decision_key = None
-    decision = None
-    for key in all_keys:
-        if key.endswith(f"_{decision_id}.json"):
-            decision_key = key
-            decision = storage.load(key.replace(".json", ""))
-            break
+    decision_key, decision = load_decision_by_id(storage, decision_id)
 
     if not decision:
         emit_error(f"决策 {decision_id} 不存在")
@@ -127,7 +125,7 @@ def update_assumption(
     assumption["verified_at"] = datetime.now().isoformat()
 
     decision["updated_at"] = datetime.now().isoformat()
-    storage.save(decision_key.replace(".json", ""), decision)
+    storage.save(decision_key, decision)
 
     log_operation("update_assumption", decision_id, "decision", {
         "assumption_id": assumption_id,
@@ -160,15 +158,7 @@ def backfill_result(
     backend = config.get("storage.backend", "file")
     storage = get_storage("decisions", {"backend": backend, "base_dir": config.get_path("decisions_dir")})
 
-    # 查找决策
-    all_keys = storage.list("*_D*.json")
-    decision_key = None
-    decision = None
-    for key in all_keys:
-        if key.endswith(f"_{decision_id}.json"):
-            decision_key = key
-            decision = storage.load(key.replace(".json", ""))
-            break
+    decision_key, decision = load_decision_by_id(storage, decision_id)
 
     if not decision:
         emit_error(f"决策 {decision_id} 不存在")
@@ -186,7 +176,7 @@ def backfill_result(
     decision["backfilled_at"] = datetime.now().isoformat()
     decision["updated_at"] = datetime.now().isoformat()
 
-    storage.save(decision_key.replace(".json", ""), decision)
+    storage.save(decision_key, decision)
     log_operation("backfill", decision_id, "decision", {"result": result})
 
     emit_json(True, decision_id=decision_id, message=f"决策 #{decision_id} 结果已回填")
@@ -198,13 +188,7 @@ def get_decision(decision_id: str):
     backend = config.get("storage.backend", "file")
     storage = get_storage("decisions", {"backend": backend, "base_dir": config.get_path("decisions_dir")})
 
-    # 查找决策
-    all_keys = storage.list("*_D*.json")
-    decision = None
-    for key in all_keys:
-        if key.endswith(f"_{decision_id}.json"):
-            decision = storage.load(key.replace(".json", ""))
-            break
+    _, decision = load_decision_by_id(storage, decision_id)
 
     if not decision:
         emit_error(f"决策 {decision_id} 不存在")
@@ -219,17 +203,13 @@ def list_decisions(task_id: Optional[str] = None):
     backend = config.get("storage.backend", "file")
     storage = get_storage("decisions", {"backend": backend, "base_dir": config.get_path("decisions_dir")})
 
-    all_keys = storage.list("*_D*.json")
+    all_keys = storage.list(f"{task_id}_D*" if task_id else "*_D*")
     decisions = []
 
     for key in all_keys:
-        # key 格式: task_id_decision_id.json
-        key_without_ext = key.replace(".json", "")
-        if "_D" in key_without_ext:
-            decision = storage.load(key_without_ext)
-            if decision:
-                if task_id is None or decision.get("task_id") == task_id:
-                    decisions.append(decision)
+        decision = storage.load(key)
+        if decision:
+            decisions.append(decision)
 
     decisions.sort(key=lambda d: d["created_at"], reverse=True)
 

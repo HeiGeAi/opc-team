@@ -10,22 +10,16 @@ task_flow.py - OPC Team 任务状态机
 - SLA 检查与自动升级
 """
 
-import json
-import sys
 from datetime import datetime, timedelta
 from enum import Enum
-from pathlib import Path
-from typing import Optional, Dict, List
 import argparse
 
 from config import get_config
 from runtime import (
     emit_json, emit_error, require_writable,
-    generate_task_id, log_operation,
-    get_storage_path, save_entity, load_entity, list_entities
+    generate_task_id, log_operation
 )
 from storage import get_storage
-import os
 
 
 # ==================== 枚举定义 ====================
@@ -168,8 +162,7 @@ def transition_state(task_id: str, to_state: str, actor: str):
             "backend": config.get("storage.backend", "file"),
             "base_dir": config.get_path("decisions_dir")
         })
-        decisions = list_entities("decisions")
-        task_decisions = [d for d in decisions if d.startswith(task_id)]
+        task_decisions = decision_storage.list(f"{task_id}_D*")
         if not task_decisions:
             emit_error("L3 任务必须创建决策履历才能完成")
             return

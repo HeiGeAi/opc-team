@@ -4,6 +4,9 @@
 
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CALLER_DIR="$(pwd)"
+
 # 颜色输出
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -25,6 +28,48 @@ echo_warning() {
 
 echo_error() {
     echo -e "${RED}[ERROR]${NC} $1"
+}
+
+run_repo_tool() {
+    local tool="$1"
+    shift
+    (
+        cd "$SCRIPT_DIR"
+        python3 "tools/${tool}.py" "$@"
+    )
+}
+
+write_adapted_skill() {
+    local output_file="$1"
+    local config_path="$2"
+    local tool_prefix="$3"
+
+    python3 - "$SCRIPT_DIR/SKILL.md" "$output_file" "$config_path" "$tool_prefix" <<'PY'
+from pathlib import Path
+import sys
+
+src, dst, config_path, tool_prefix = sys.argv[1:5]
+text = Path(src).read_text(encoding="utf-8")
+text = text.replace("python3 tools/", f"OPC_CONFIG={config_path} python3 {tool_prefix}/")
+Path(dst).write_text(text, encoding="utf-8")
+PY
+}
+
+sync_project_bundle() {
+    local bundle_dir="$1"
+    local bundle_platform="$2"
+
+    mkdir -p "$bundle_dir/tools"
+    cp "$SCRIPT_DIR"/tools/*.py "$bundle_dir/tools/"
+    cp "$SCRIPT_DIR/config.json" "$bundle_dir/"
+    cp "$SCRIPT_DIR/README.md" "$bundle_dir/"
+    cp "$SCRIPT_DIR/install.sh" "$bundle_dir/"
+    cp "$SCRIPT_DIR/DEPLOYMENT.md" "$bundle_dir/"
+    (
+        cd "$bundle_dir"
+        python3 tools/config.py init --platform "$bundle_platform" >/dev/null
+        python3 tools/memory_sync.py init >/dev/null
+    )
 }
 
 # 检测操作系统
@@ -66,9 +111,9 @@ detect_platform() {
         echo "claude_code"
     elif [ -d "$HOME/.openclaw" ]; then
         echo "openclaw"
-    elif [ -f ".cursorrules" ]; then
+    elif [ -f "$CALLER_DIR/.cursorrules" ]; then
         echo "cursor"
-    elif [ -f ".windsurfrules" ]; then
+    elif [ -f "$CALLER_DIR/.windsurfrules" ]; then
         echo "windsurf"
     else
         echo "generic"
@@ -93,16 +138,12 @@ install_dependencies() {
 init_config() {
     echo_info "初始化配置..."
 
-    # 如果用户指定了平台，使用用户指定的；否则自动检测
-    if [ -n "$PLATFORM" ] && [ "$PLATFORM" != "auto" ]; then
-        echo_info "使用指定平台: $PLATFORM"
+    if [ ! -f "$SCRIPT_DIR/config.json" ]; then
+        run_repo_tool config init --platform generic
+        echo_success "已创建默认配置"
     else
-        PLATFORM=$(detect_platform)
-        echo_info "自动检测到平台: $PLATFORM"
+        echo_info "使用仓库内默认配置: $SCRIPT_DIR/config.json"
     fi
-
-    # 运行配置初始化，传递平台参数
-    python3 tools/config.py init --platform "$PLATFORM"
 
     echo_success "配置初始化完成"
 }
@@ -111,7 +152,12 @@ init_config() {
 init_data_dirs() {
     echo_info "创建数据目录..."
 
-    mkdir -p data/{tasks,decisions,risks,memory,logs}
+    mkdir -p \
+        "$SCRIPT_DIR/data/tasks" \
+        "$SCRIPT_DIR/data/decisions" \
+        "$SCRIPT_DIR/data/risks" \
+        "$SCRIPT_DIR/data/memory" \
+        "$SCRIPT_DIR/data/logs"
 
     echo_success "数据目录创建完成"
 }
@@ -120,7 +166,7 @@ init_data_dirs() {
 init_memory() {
     echo_info "初始化记忆系统..."
 
-    python3 tools/memory_sync.py init
+    run_repo_tool memory_sync init
 
     echo_success "记忆系统初始化完成"
 }
@@ -129,7 +175,7 @@ init_memory() {
 setup_env() {
     echo_info "设置环境变量..."
 
-    OPC_HOME=$(pwd)
+    OPC_HOME="$SCRIPT_DIR"
 
     # 检测 shell 类型
     if [ -n "$BASH_VERSION" ]; then
@@ -162,9 +208,13 @@ install_for_platform() {
             echo_info "为 Claude Code 安装..."
             SKILL_DIR="$HOME/.claude/skills/opc-team"
             mkdir -p "$SKILL_DIR"
-            cp SKILL.md "$SKILL_DIR/"
-            cp -r tools "$SKILL_DIR/"
-            cp config.json "$SKILL_DIR/"
+            mkdir -p "$SKILL_DIR/tools"
+            cp "$SCRIPT_DIR"/tools/*.py "$SKILL_DIR/tools/"
+            cp "$SCRIPT_DIR/config.json" "$SKILL_DIR/"
+            write_adapted_skill \
+                "$SKILL_DIR/SKILL.md" \
+                "$(printf '%q' "$SKILL_DIR/config.json")" \
+                "$(printf '%q' "$SKILL_DIR/tools")"
             echo_success "已安装到 $SKILL_DIR"
             echo_info "重启 Claude Code 后即可使用"
             ;;
@@ -181,9 +231,13 @@ install_for_platform() {
             fi
             SKILL_DIR="$HOME/.openclaw/workspace-$AGENT_ID/skills/opc-team"
             mkdir -p "$SKILL_DIR"
-            cp SKILL.md "$SKILL_DIR/"
-            cp -r tools "$SKILL_DIR/"
-            cp config.json "$SKILL_DIR/"
+            mkdir -p "$SKILL_DIR/tools"
+            cp "$SCRIPT_DIR"/tools/*.py "$SKILL_DIR/tools/"
+            cp "$SCRIPT_DIR/config.json" "$SKILL_DIR/"
+            write_adapted_skill \
+                "$SKILL_DIR/SKILL.md" \
+                "$(printf '%q' "$SKILL_DIR/config.json")" \
+                "$(printf '%q' "$SKILL_DIR/tools")"
             echo_success "已安装到 $SKILL_DIR"
             echo_info "Agent ID: $AGENT_ID"
             ;;
@@ -197,29 +251,37 @@ install_for_platform() {
 
         cursor)
             echo_info "为 Cursor 安装..."
-            if [ -f ".cursorrules" ]; then
+            sync_project_bundle "$CALLER_DIR/opc-team" "cursor"
+            if [ -f "$CALLER_DIR/.cursorrules" ]; then
                 echo_warning ".cursorrules 已存在，将追加内容"
-                echo "" >> .cursorrules
+                echo "" >> "$CALLER_DIR/.cursorrules"
             fi
-            cat SKILL.md >> .cursorrules
-            echo_success "已追加到 .cursorrules"
+            TEMP_SKILL="$(mktemp)"
+            write_adapted_skill "$TEMP_SKILL" "opc-team/config.json" "opc-team/tools"
+            cat "$TEMP_SKILL" >> "$CALLER_DIR/.cursorrules"
+            rm -f "$TEMP_SKILL"
+            echo_success "已同步工具到 $CALLER_DIR/opc-team 并追加到 .cursorrules"
             echo_info "Cursor 会自动加载规则"
             ;;
 
         windsurf)
             echo_info "为 Windsurf 安装..."
-            if [ -f ".windsurfrules" ]; then
+            sync_project_bundle "$CALLER_DIR/opc-team" "windsurf"
+            if [ -f "$CALLER_DIR/.windsurfrules" ]; then
                 echo_warning ".windsurfrules 已存在，将追加内容"
-                echo "" >> .windsurfrules
+                echo "" >> "$CALLER_DIR/.windsurfrules"
             fi
-            cat SKILL.md >> .windsurfrules
-            echo_success "已追加到 .windsurfrules"
+            TEMP_SKILL="$(mktemp)"
+            write_adapted_skill "$TEMP_SKILL" "opc-team/config.json" "opc-team/tools"
+            cat "$TEMP_SKILL" >> "$CALLER_DIR/.windsurfrules"
+            rm -f "$TEMP_SKILL"
+            echo_success "已同步工具到 $CALLER_DIR/opc-team 并追加到 .windsurfrules"
             ;;
 
         generic)
             echo_info "通用安装模式"
             echo_success "工具已就绪，可直接使用 CLI 命令"
-            echo_info "示例: python3 tools/task_flow.py create --title '测试任务' --ceo-input '测试'"
+            echo_info "示例: python3 \"$SCRIPT_DIR/tools/task_flow.py\" create --title '测试任务' --ceo-input '测试'"
             ;;
     esac
 }
@@ -229,14 +291,14 @@ run_test() {
     echo_info "运行测试..."
 
     # 创建测试任务
-    TEST_OUTPUT=$(python3 tools/task_flow.py create --title "安装测试" --ceo-input "测试安装是否成功" 2>&1)
+    TEST_OUTPUT=$(run_repo_tool task_flow create --title "安装测试" --ceo-input "测试安装是否成功" 2>&1)
 
     if echo "$TEST_OUTPUT" | grep -q "success.*true"; then
         TASK_ID=$(echo "$TEST_OUTPUT" | grep -o 'T[0-9]\{3\}')
         echo_success "测试通过！任务 $TASK_ID 创建成功"
 
         # 清理测试数据
-        rm -f "data/tasks/$TASK_ID.json"
+        rm -f "$SCRIPT_DIR/data/tasks/$TASK_ID.json"
         return 0
     else
         echo_error "测试失败"
@@ -359,8 +421,8 @@ main() {
     echo ""
     echo "下一步:"
     echo "  1. 运行 'source ~/.bashrc' (或 ~/.zshrc) 加载环境变量"
-    echo "  2. 测试: python3 tools/task_flow.py create --title '测试' --ceo-input '测试'"
-    echo "  3. 查看文档: cat README.md"
+    echo "  2. 测试: python3 \"$SCRIPT_DIR/tools/task_flow.py\" create --title '测试' --ceo-input '测试'"
+    echo "  3. 查看文档: cat \"$SCRIPT_DIR/README.md\""
     echo ""
 }
 

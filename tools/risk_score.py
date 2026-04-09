@@ -9,10 +9,8 @@ risk_score.py - OPC Team 风险量化评分
 - 风险等级自动计算
 """
 
-import json
 from datetime import datetime
-from pathlib import Path
-from typing import Optional, Dict, List
+from typing import Optional, Tuple
 import argparse
 
 from config import get_config
@@ -51,6 +49,15 @@ RISK_LEVEL_DESC = {
     4: "高危 - 升级处理，建议暂缓",
     5: "致命 - 触发停止机制"
 }
+
+
+def load_risk_by_id(storage, risk_id: str) -> Tuple[Optional[str], Optional[dict]]:
+    """按风险 ID 查找存储键和内容。"""
+    for key in storage.list(f"*_{risk_id}"):
+        risk = storage.load(key)
+        if risk:
+            return key, risk
+    return None, None
 
 
 # ==================== 核心功能 ====================
@@ -130,15 +137,7 @@ def update_risk(
     backend = config.get("storage.backend", "file")
     storage = get_storage("risks", {"backend": backend, "base_dir": config.get_path("risks_dir")})
 
-    # 查找风险
-    all_keys = storage.list("*_R*.json")
-    risk_key = None
-    risk = None
-    for key in all_keys:
-        if key.endswith(f"_{risk_id}.json"):
-            risk_key = key.replace(".json", "")
-            risk = storage.load(risk_key)
-            break
+    risk_key, risk = load_risk_by_id(storage, risk_id)
 
     if not risk:
         emit_error(f"风险 {risk_id} 不存在")
@@ -178,11 +177,11 @@ def list_risks(task_id: str, min_level: Optional[int] = None):
     backend = config.get("storage.backend", "file")
     storage = get_storage("risks", {"backend": backend, "base_dir": config.get_path("risks_dir")})
 
-    all_keys = storage.list(f"{task_id}_*.json")
+    all_keys = storage.list(f"{task_id}_R*")
 
     risks = []
     for key in all_keys:
-        risk = storage.load(key.replace(".json", ""))
+        risk = storage.load(key)
         if risk and (min_level is None or risk["level"] >= min_level):
             risks.append({
                 "risk_id": risk["risk_id"],
@@ -205,13 +204,7 @@ def get_risk(risk_id: str):
     backend = config.get("storage.backend", "file")
     storage = get_storage("risks", {"backend": backend, "base_dir": config.get_path("risks_dir")})
 
-    # 查找风险
-    all_keys = storage.list("*_R*.json")
-    risk = None
-    for key in all_keys:
-        if key.endswith(f"_{risk_id}.json"):
-            risk = storage.load(key.replace(".json", ""))
-            break
+    _, risk = load_risk_by_id(storage, risk_id)
 
     if not risk:
         emit_error(f"风险 {risk_id} 不存在")

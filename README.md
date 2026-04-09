@@ -1,6 +1,6 @@
 # OPC Team - 跨平台通用版 v4.2.0
 
-**版本**: v4.2.0 Universal Edition  
+**版本**: v4.2.0 Universal Edition
 **类型**: 跨平台 Agent 协作框架
 
 ---

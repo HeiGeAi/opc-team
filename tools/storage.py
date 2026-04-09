@@ -18,6 +18,7 @@ from datetime import datetime
 
 
 # 跨平台文件锁
+HAS_FILELOCK = False
 try:
     import fcntl
     HAS_FCNTL = True
@@ -90,6 +91,7 @@ class FileStorage(Storage):
             lock_path = str(file_obj.name) + ".lock"
             lock = filelock.FileLock(lock_path)
             lock.acquire()
+            setattr(file_obj, "_opc_lock", lock)
 
     def _unlock_file(self, file_obj):
         """解锁文件"""
@@ -99,10 +101,16 @@ class FileStorage(Storage):
         if HAS_FCNTL:
             fcntl.flock(file_obj.fileno(), fcntl.LOCK_UN)
         elif HAS_FILELOCK:
-            import filelock
-            lock_path = str(file_obj.name) + ".lock"
-            lock = filelock.FileLock(lock_path)
-            lock.release()
+            lock = getattr(file_obj, "_opc_lock", None)
+            if lock is not None:
+                lock.release()
+                delattr(file_obj, "_opc_lock")
+
+    def _normalize_list_pattern(self, pattern: str) -> str:
+        """兼容带或不带 .json 后缀的查询模式。"""
+        if pattern.endswith(".json"):
+            return pattern[:-5]
+        return pattern
 
     def save(self, key: str, data: Dict) -> None:
         """保存数据"""
@@ -136,6 +144,8 @@ class FileStorage(Storage):
 
     def list(self, pattern: str = "*") -> List[str]:
         """列出所有键"""
+        pattern = self._normalize_list_pattern(pattern)
+
         # 支持子目录模式：tasks/* -> tasks/T001, tasks/T002
         if "/" in pattern:
             parts = pattern.split("/")
@@ -171,6 +181,7 @@ class SQLiteStorage(Storage):
     def _init_db(self):
         """初始化数据库"""
         import sqlite3
+        self.db_path.parent.mkdir(parents=True, exist_ok=True)
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         cursor.execute("""
@@ -271,7 +282,7 @@ def get_storage(storage_type: str, config: Optional[Dict] = None) -> Storage:
     if storage_type not in _storage_instances:
         if config is None:
             # 使用默认配置
-            from .config import Config
+            from config import Config
             cfg = Config()
             backend = cfg.get("storage.backend", "file")
 

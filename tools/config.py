@@ -210,8 +210,7 @@ class Config:
                 "ai_platform.name": "cursor",
                 "ai_platform.tool_prefix": "",
                 "ai_platform.supports_bash": False,
-                "ai_platform.supports_function_calling": False,
-                "features.readonly_mode": True  # Cursor 默认只读
+                "ai_platform.supports_function_calling": False
             },
             "windsurf": {
                 "ai_platform.name": "windsurf",
@@ -296,8 +295,9 @@ if __name__ == "__main__":
     set_parser.add_argument("key", help="配置键")
     set_parser.add_argument("value", help="配置值")
 
-    # info 命令
+    # info/show 命令
     subparsers.add_parser("info", help="显示配置信息")
+    subparsers.add_parser("show", help="显示配置信息")
 
     # detect 命令
     subparsers.add_parser("detect", help="检测 AI 平台")
@@ -340,7 +340,7 @@ if __name__ == "__main__":
         config.set(args.key, value)
         print(f"✅ 已设置 {args.key} = {value}")
 
-    elif args.command == "info":
+    elif args.command in {"info", "show"}:
         config.print_info()
 
     elif args.command == "detect":
