@@ -1,56 +1,84 @@
-# OPC Team - 跨平台通用版 v4.2.2
+# OPC Team — Cross-Platform Agent Ops Framework
 
-**版本**: v4.2.2 Universal Edition
-**类型**: 跨平台 Agent 协作框架
+[![Version](https://img.shields.io/badge/version-v4.2.2-111827.svg)](./README.md)
+[![Python](https://img.shields.io/badge/python-3.7%2B-3776AB.svg?logo=python&logoColor=white)](./README.md)
+[![Platforms](https://img.shields.io/badge/platform-Claude%20Code%20%7C%20OpenClaw%20%7C%20Cursor%20%7C%20Windsurf%20%7C%20API-0F766E.svg)](./DEPLOYMENT.md)
+[![License](https://img.shields.io/badge/license-MIT-059669.svg)](./LICENSE)
 
----
+> 把“靠 prompt 演戏”的 AI Agent，升级成“可调度、可追踪、可复盘”的执行系统。
 
-## 🌟 核心特性
+**OPC Team** 是一个跨平台的 Agent 协作框架，目标不是再造一个角色扮演 prompt，而是给 AI 执行过程加上明确的工程化约束：任务状态机、决策履历、风险量化、三级记忆，以及一组可审计的 CLI 工具。它适合跑在 **Claude Code / OpenClaw / Cursor / Windsurf / 通用 CLI / API 工作流** 上，让 Agent 的执行过程从“看起来会做”变成“真的可控、可回放、可治理”。
 
-- ✅ **跨平台通用**：支持 Claude Code / OpenClaw / Cursor / Windsurf / 通用 CLI / API 调用
-- ✅ **强制 CLI 调用**：所有操作可追溯、可审计、可恢复
-- ✅ **状态机约束**：防止非法流转，保证流程正确性
-- ✅ **决策履历闭环**：假设追踪与证伪，48小时内重审
-- ✅ **三级记忆系统**：L0/L1/L2，跨会话沉淀
-- ✅ **量化风险评分**：1-5 级，中危以上必须有应对预案
-- ✅ **自动安装脚本**：一键部署，自动检测平台
+[Quick Start](#-quick-start) · [Platform Matrix](#-supported-platforms) · [Deployment Guide](./DEPLOYMENT.md) · [Skill Manual](./SKILL.md) · [API Schema](./adapters/api.json)
 
 ---
 
-## 🚀 快速开始
+## 为什么这个项目值得看
 
-### 1. 安装
+- **不是纯 Prompt 模板**：核心能力是 `tools/*.py` 里的状态机、决策、风险、记忆和配置系统，不只是“设定一个 COO 角色”。
+- **不是平台绑定插件**：同一套框架同时覆盖 Claude Code、OpenClaw、Cursor、Windsurf、通用 CLI 和 API 场景。
+- **不是黑箱执行**：每次任务创建、状态流转、风险评估、决策更新、记忆同步，都可以被记录、回溯和审计。
+- **不是会话即失忆**：L0/L1/L2 三级记忆可以把任务摘要、长期偏好和方法论沉淀下来。
+
+## 它解决什么问题
+
+| 只靠 Prompt 的 Agent 团队设定 | OPC Team 做的事 |
+|---|---|
+| 状态靠上下文“猜” | 用状态机强约束任务流转 |
+| 方案拍脑袋，假设容易丢 | 用决策履历记录选项、假设、回填结果 |
+| 风险描述停留在口头 | 用概率 × 影响做量化评分 |
+| 会话结束就丢经验 | 用 L0/L1/L2 记忆沉淀跨任务经验 |
+| 平台一换就要重写一版 | 用同一套 CLI 和 Skill 适配多平台 |
+
+## 核心能力
+
+- **Task Flow**：任务创建、定级、状态流转、进度上报、SLA 检查。
+- **Decision Log**：记录方案、选择、理由、假设，并支持后续验证和回填。
+- **Risk Score**：把风险从“感觉有点危险”变成可量化的等级和应对预案。
+- **Memory Sync**：把即时记忆、短期摘要、长期经验同步到统一存储。
+- **Config + Storage**：支持平台适配、路径配置、文件存储和 SQLite 存储。
+
+---
+
+## 🚀 Quick Start
+
+### TL;DR
 
 ```bash
+git clone https://github.com/HeiGeAi/opc-team.git
 cd opc-team
-./install.sh
+./install.sh -p generic --skip-env -t
 ```
 
-安装脚本会自动检测你的 AI 平台并完成配置。
-
-### 2. 验证
+### 最短上手路径
 
 ```bash
-python3 tools/task_flow.py create --title "测试任务" --ceo-input "测试安装"
+# 1. 创建任务
+python3 tools/task_flow.py create --title "评估知识付费可行性" --ceo-input "我想做知识付费"
+
+# 2. 定级
+python3 tools/task_flow.py assess --task-id T001 --level L3 --reason "需要多方案和风险评估"
+
+# 3. 创建决策履历
+python3 tools/decision_log.py create \
+  --task-id T001 \
+  --title "定价策略" \
+  --options "方案A,方案B" \
+  --chosen "方案B" \
+  --reason "高净值用户付费更明确" \
+  --assumptions "假设1:转化率>5%"
+
+# 4. 推进任务
+python3 tools/task_flow.py transition --task-id T001 --to in_strategy --actor "COO魏明远"
+python3 tools/task_flow.py transition --task-id T001 --to in_execution --actor "COO魏明远"
+python3 tools/task_flow.py transition --task-id T001 --to completed --actor "COO魏明远"
 ```
 
-### 3. 使用
+### 在不同平台里怎么用
 
-根据你的平台：
-
-**Claude Code**：
-直接下达自然语言指令即可：
-```
-评估知识付费可行性
-```
-
-**OpenClaw / Cursor / Windsurf**：
-```
-评估知识付费可行性
-```
-
-**通用 CLI**：
-将 `SKILL.md` 作为 system prompt 传给 AI。
+- **Claude Code / OpenClaw / Cursor / Windsurf**：安装后直接下达自然语言指令，让 Agent 按 `SKILL.md` 调用 CLI。
+- **通用 CLI**：把 [SKILL.md](./SKILL.md) 当作 system prompt，允许执行 `python3 tools/*.py`。
+- **API 工作流**：把 [adapters/api.json](./adapters/api.json) 接到 function calling 或工具层。
 
 ---
 
