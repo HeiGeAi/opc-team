@@ -1,5 +1,7 @@
 # OPC Team — Cross-Platform Agent Ops Framework
 
+![OPC Team agent ops hero](./assets/opc-team-hero.png)
+
 [![Version](https://img.shields.io/badge/version-v4.2.3-111827.svg)](./README.md)
 [![Python](https://img.shields.io/badge/python-3.7%2B-3776AB.svg?logo=python&logoColor=white)](./README.md)
 [![Platforms](https://img.shields.io/badge/platform-Claude%20Code%20%7C%20OpenClaw%20%7C%20Cursor%20%7C%20Windsurf%20%7C%20API-0F766E.svg)](./DEPLOYMENT.md)
