@@ -57,7 +57,7 @@ class Config:
     def _create_default_config(self) -> Dict:
         """创建默认配置"""
         default = {
-            "version": "4.2.2",
+            "version": "4.2.3",
             "platform": "generic",  # generic / claude_code / openclaw / cursor / api
             "paths": {
                 "data_dir": str(Path.cwd() / "data"),

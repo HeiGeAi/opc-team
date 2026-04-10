@@ -13,6 +13,7 @@ runtime.py - OPC Team 统一运行时
 import json
 import os
 import sys
+from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, Dict, Any
@@ -71,6 +72,18 @@ def unlock_file(file_obj):
         if lock is not None:
             lock.release()
             delattr(file_obj, "_opc_lock")
+
+
+@contextmanager
+def operation_lock(lock_path: Path):
+    """对一段读-改-写操作加锁，避免单独 load/save 锁导致更新丢失。"""
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(lock_path, "a+", encoding="utf-8") as f:
+        lock_file(f)
+        try:
+            yield
+        finally:
+            unlock_file(f)
 
 
 # ==================== 只读模式检查 ====================

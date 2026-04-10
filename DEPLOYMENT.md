@@ -234,7 +234,7 @@ if response.choices[0].message.get("function_call"):
 
 ```json
 {
-  "version": "4.2.2",
+  "version": "4.2.3",
   "platform": "generic",
   "paths": {
     "data_dir": "data",

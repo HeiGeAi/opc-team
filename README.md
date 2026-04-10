@@ -1,6 +1,6 @@
 # OPC Team — Cross-Platform Agent Ops Framework
 
-[![Version](https://img.shields.io/badge/version-v4.2.2-111827.svg)](./README.md)
+[![Version](https://img.shields.io/badge/version-v4.2.3-111827.svg)](./README.md)
 [![Python](https://img.shields.io/badge/python-3.7%2B-3776AB.svg?logo=python&logoColor=white)](./README.md)
 [![Platforms](https://img.shields.io/badge/platform-Claude%20Code%20%7C%20OpenClaw%20%7C%20Cursor%20%7C%20Windsurf%20%7C%20API-0F766E.svg)](./DEPLOYMENT.md)
 [![License](https://img.shields.io/badge/license-MIT-059669.svg)](./LICENSE)
@@ -37,6 +37,18 @@
 - **Risk Score**：把风险从“感觉有点危险”变成可量化的等级和应对预案。
 - **Memory Sync**：把即时记忆、短期摘要、长期经验同步到统一存储。
 - **Config + Storage**：支持平台适配、路径配置、文件存储和 SQLite 存储。
+
+## 真实任务跑出来是什么样
+
+下面不是静态 Prompt 示例，而是用 OPC Team 本地状态机跑出的 3 个 L3 策略任务形态：每个任务都会生成任务状态、风险记录、决策履历和记忆摘要。
+
+| 真实任务 | OPC Team 给出的主决策 | 风险控制 |
+|---|---|---|
+| 上班族如何发展副业 | 先做垂直技能服务，再内容化，最后产品化 | 控制每周投入节奏；先做访谈和低价 MVP，避免一上来重投入 |
+| 2026 年自媒体账号怎么变现 | 高客单咨询/陪跑 + 知识产品，广告和联盟只做补充 | 不把平台分成当唯一收入；先设计高信任高客单承接链路 |
+| 我 + AI 适合什么知识付费产品 | 模板库 + 清单 + 7 天短周期陪跑 | 避免大课和重社群；围绕明确结果交付，而不是堆知识点 |
+
+这类输出会沉淀到 `data/tasks/`、`data/decisions/`、`data/risks/` 和 `data/MEMORY.md`，用于回放过程、复盘假设和追踪后续执行。
 
 ---
 
@@ -251,7 +263,7 @@ python3 tools/memory_sync.py sync --task-id T001
 
 ```json
 {
-  "version": "4.2.2",
+  "version": "4.2.3",
   "platform": "generic",
   "storage": {
     "backend": "file",  // file / sqlite
@@ -350,6 +362,7 @@ python3 tools/memory_sync.py sync --task-id T001
 
 ## 🔄 版本历史
 
+- **v4.2.3** (2026-04-10): 修复 completed 状态未自动收敛到 100% 进度、同任务并发写可能覆盖进度的问题，保持运行时语义与版本同步
 - **v4.2.2** (2026-04-09): 修复 CLI 失败返回码、Windows 运行时锁、参数校验、平台参数初始化
 - **v4.2.1** (2026-04-09): 修复 readonly_mode 写入穿透、平台安装后配置未适配、版本号治理
 - **v4.2.0** (2026-04-09): 用户反馈优化版 - 修复并发ID撞号、-p参数覆盖、只读模式、auto_sync_memory、文档降噪

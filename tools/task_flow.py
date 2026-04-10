@@ -17,7 +17,7 @@ import argparse
 from config import get_config
 from runtime import (
     emit_json, emit_error, require_writable,
-    generate_task_id, log_operation
+    generate_task_id, log_operation, operation_lock
 )
 from storage import get_storage
 
@@ -62,6 +62,11 @@ SLA_LIMITS = {
 }
 
 
+def _task_write_lock(config, task_id: str):
+    """同一任务的读-改-写必须串行化，避免并发 CLI 更新互相覆盖。"""
+    return operation_lock(config.get_path("tasks_dir") / f".{task_id}.lock")
+
+
 # ==================== 核心功能 ====================
 
 def create_task(title: str, ceo_input: str) -> str:
@@ -101,38 +106,39 @@ def assess_task(task_id: str, level: str, reason: str):
     backend = config.get("storage.backend", "file")
     storage = get_storage("tasks", {"backend": backend, "base_dir": config.get_path("tasks_dir")})
 
-    task = storage.load(task_id)
-    if not task:
-        emit_error(f"任务 {task_id} 不存在")
-        return
+    with _task_write_lock(config, task_id):
+        task = storage.load(task_id)
+        if not task:
+            emit_error(f"任务 {task_id} 不存在")
+            return
 
-    if task["state"] != TaskState.CREATED.value:
-        emit_error(f"任务状态必须是 created，当前是 {task['state']}")
-        return
+        if task["state"] != TaskState.CREATED.value:
+            emit_error(f"任务状态必须是 created，当前是 {task['state']}")
+            return
 
-    if not require_writable("任务定级"):
-        return
+        if not require_writable("任务定级"):
+            return
 
-    # 标准化 level 格式
-    level_map = {
-        "L1": TaskLevel.L1.value,
-        "L2": TaskLevel.L2.value,
-        "L3": TaskLevel.L3.value,
-        "L4": TaskLevel.L4.value,
-    }
-    task["level"] = level_map.get(level, level)
-    task["state"] = TaskState.ASSESSED.value
-    task["updated_at"] = datetime.now().isoformat()
-    task["actors"].append({
-        "role": "COO",
-        "name": "魏明远",
-        "action": "定级",
-        "level": level,
-        "reason": reason,
-        "timestamp": datetime.now().isoformat()
-    })
+        # 标准化 level 格式
+        level_map = {
+            "L1": TaskLevel.L1.value,
+            "L2": TaskLevel.L2.value,
+            "L3": TaskLevel.L3.value,
+            "L4": TaskLevel.L4.value,
+        }
+        task["level"] = level_map.get(level, level)
+        task["state"] = TaskState.ASSESSED.value
+        task["updated_at"] = datetime.now().isoformat()
+        task["actors"].append({
+            "role": "COO",
+            "name": "魏明远",
+            "action": "定级",
+            "level": level,
+            "reason": reason,
+            "timestamp": datetime.now().isoformat()
+        })
 
-    storage.save(task_id, task)
+        storage.save(task_id, task)
     log_operation("assess", task_id, "task", {"level": level, "reason": reason})
 
     emit_json(True, task_id=task_id, level=level, message=f"任务 {task_id} 定级为 {level}")
@@ -144,41 +150,50 @@ def transition_state(task_id: str, to_state: str, actor: str):
     backend = config.get("storage.backend", "file")
     storage = get_storage("tasks", {"backend": backend, "base_dir": config.get_path("tasks_dir")})
 
-    task = storage.load(task_id)
-    if not task:
-        emit_error(f"任务 {task_id} 不存在")
-        return
-
-    from_state = task["state"]
-
-    # 验证状态转换是否合法
-    if to_state not in [s.value for s in STATE_TRANSITIONS.get(TaskState(from_state), [])]:
-        emit_error(f"非法状态转换: {from_state} -> {to_state}")
-        return
-
-    # L3 任务完成前必须有决策履历
-    if to_state == TaskState.COMPLETED.value and task.get("level") == TaskLevel.L3.value:
-        decision_storage = get_storage("decisions", {
-            "backend": config.get("storage.backend", "file"),
-            "base_dir": config.get_path("decisions_dir")
-        })
-        task_decisions = decision_storage.list(f"{task_id}_D*")
-        if not task_decisions:
-            emit_error("L3 任务必须创建决策履历才能完成")
+    with _task_write_lock(config, task_id):
+        task = storage.load(task_id)
+        if not task:
+            emit_error(f"任务 {task_id} 不存在")
             return
 
-    if not require_writable("状态流转"):
-        return
+        from_state = task["state"]
 
-    task["state"] = to_state
-    task["updated_at"] = datetime.now().isoformat()
-    task["actors"].append({
-        "actor": actor,
-        "action": f"状态流转: {from_state} -> {to_state}",
-        "timestamp": datetime.now().isoformat()
-    })
+        # 验证状态转换是否合法
+        if to_state not in [s.value for s in STATE_TRANSITIONS.get(TaskState(from_state), [])]:
+            emit_error(f"非法状态转换: {from_state} -> {to_state}")
+            return
 
-    storage.save(task_id, task)
+        # L3 任务完成前必须有决策履历
+        if to_state == TaskState.COMPLETED.value and task.get("level") == TaskLevel.L3.value:
+            decision_storage = get_storage("decisions", {
+                "backend": config.get("storage.backend", "file"),
+                "base_dir": config.get_path("decisions_dir")
+            })
+            task_decisions = decision_storage.list(f"{task_id}_D*")
+            if not task_decisions:
+                emit_error("L3 任务必须创建决策履历才能完成")
+                return
+
+        if not require_writable("状态流转"):
+            return
+
+        task["state"] = to_state
+        if to_state == TaskState.COMPLETED.value and task.get("progress", 0) < 100:
+            # 完成态自动收敛到 100%，避免状态与进度语义不一致。
+            task["progress"] = 100
+            task["progress_log"].append({
+                "message": "任务完成",
+                "progress": 100,
+                "timestamp": datetime.now().isoformat()
+            })
+        task["updated_at"] = datetime.now().isoformat()
+        task["actors"].append({
+            "actor": actor,
+            "action": f"状态流转: {from_state} -> {to_state}",
+            "timestamp": datetime.now().isoformat()
+        })
+
+        storage.save(task_id, task)
     log_operation("transition", task_id, "task", {"from": from_state, "to": to_state, "actor": actor})
 
     # 如果开启了 auto_sync_memory 且任务完成，同步到 MEMORY.md
@@ -201,23 +216,28 @@ def report_progress(task_id: str, message: str, progress: int):
     backend = config.get("storage.backend", "file")
     storage = get_storage("tasks", {"backend": backend, "base_dir": config.get_path("tasks_dir")})
 
-    task = storage.load(task_id)
-    if not task:
-        emit_error(f"任务 {task_id} 不存在")
-        return
+    with _task_write_lock(config, task_id):
+        task = storage.load(task_id)
+        if not task:
+            emit_error(f"任务 {task_id} 不存在")
+            return
 
-    if not require_writable("进度上报"):
-        return
+        if task["state"] == TaskState.COMPLETED.value and progress < 100:
+            emit_error("已完成任务不能回退到 100% 以下进度")
+            return
 
-    task["progress"] = progress
-    task["updated_at"] = datetime.now().isoformat()
-    task["progress_log"].append({
-        "message": message,
-        "progress": progress,
-        "timestamp": datetime.now().isoformat()
-    })
+        if not require_writable("进度上报"):
+            return
 
-    storage.save(task_id, task)
+        task["progress"] = progress
+        task["updated_at"] = datetime.now().isoformat()
+        task["progress_log"].append({
+            "message": message,
+            "progress": progress,
+            "timestamp": datetime.now().isoformat()
+        })
+
+        storage.save(task_id, task)
     log_operation("progress", task_id, "task", {"message": message, "progress": progress})
 
     # 生成进度条
