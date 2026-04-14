@@ -1725,10 +1725,8 @@
       align-items: center;
       gap: 8px;
       cursor: pointer;
-      max-width: 188px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
+      max-width: 100%;
+      min-width: 120px;
     }
 
     .model-switch summary::-webkit-details-marker {
@@ -2529,8 +2527,8 @@
     function compactModelLabel(display) {
       const text = String(display || "宿主默认模型");
       if (text === "宿主默认模型") return "宿主默认";
-      if (text.includes(" · ")) return text.replace(" · ", " / ");
-      return text.length > 16 ? `${text.slice(0, 15)}…` : text;
+      // 不再压缩显示，完整展示模型名称
+      return text;
     }
 
     function presetIsActive(agent, preset) {
