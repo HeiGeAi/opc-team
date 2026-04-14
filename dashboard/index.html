@@ -1750,15 +1750,14 @@
       left: 0;
       top: calc(100% + 8px);
       z-index: 999;
-      min-width: 220px;
+      min-width: 280px;
       display: grid;
       gap: 6px;
       padding: 10px;
       border-radius: 16px;
-      border: 1px solid rgba(18, 37, 45, 0.08);
-      background: rgba(255,255,255,0.98);
+      border: 1px solid rgba(18, 37, 45, 0.12);
+      background: #ffffff;
       box-shadow: 0 18px 34px rgba(18, 37, 45, 0.18);
-      backdrop-filter: blur(10px);
     }
 
     .model-option {
@@ -1766,7 +1765,7 @@
       padding: 10px 12px;
       border-radius: 12px;
       border: 1px solid rgba(18, 37, 45, 0.08);
-      background: rgba(255, 255, 255, 0.9);
+      background: #ffffff;
       color: var(--ink);
       text-align: left;
       cursor: pointer;
@@ -2309,6 +2308,7 @@
   <script>
     const STATE_CLASSES = new Set(["idle", "running", "waiting", "blocked", "completed", "offline", "queued", "done", "canceled"]);
     let refreshTimer = null;
+    let pauseRefresh = false;
 
     const noticeEl = document.getElementById("notice");
     const AVATAR_THEMES = {
@@ -2872,6 +2872,13 @@
     }
 
     async function refresh() {
+      if (pauseRefresh) {
+        // 如果暂停刷新，延迟 2 秒后再检查
+        clearTimeout(refreshTimer);
+        refreshTimer = setTimeout(refresh, 2000);
+        return;
+      }
+
       try {
         const response = await fetch("/api/summary", { cache: "no-store" });
         const summary = await response.json();
@@ -2897,10 +2904,26 @@
         return;
       }
 
-      if (event.target.closest(".model-switch")) return;
+      // 检测下拉菜单打开/关闭状态
+      const modelSwitch = event.target.closest(".model-switch");
+      if (modelSwitch) {
+        // 用户点击了下拉菜单，暂停自动刷新
+        pauseRefresh = true;
+        // 5 秒后恢复自动刷新
+        setTimeout(() => {
+          pauseRefresh = false;
+        }, 5000);
+        return;
+      }
+
+      // 点击其他地方，关闭所有下拉菜单并恢复刷新
+      const hadOpenMenu = document.querySelector(".model-switch[open]");
       document.querySelectorAll(".model-switch[open]").forEach((item) => {
         item.open = false;
       });
+      if (hadOpenMenu) {
+        pauseRefresh = false;
+      }
     });
 
     refresh();
