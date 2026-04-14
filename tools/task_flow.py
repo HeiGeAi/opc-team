@@ -47,9 +47,9 @@ class TaskState(str, Enum):
 STATE_TRANSITIONS = {
     TaskState.CREATED: [TaskState.ASSESSED],
     TaskState.ASSESSED: [TaskState.IN_EXECUTION, TaskState.IN_STRATEGY, TaskState.IN_DEBATE],
-    TaskState.IN_STRATEGY: [TaskState.IN_EXECUTION, TaskState.BLOCKED],
+    TaskState.IN_STRATEGY: [TaskState.IN_EXECUTION, TaskState.COMPLETED, TaskState.BLOCKED],
     TaskState.IN_EXECUTION: [TaskState.COMPLETED, TaskState.BLOCKED, TaskState.ESCALATED],
-    TaskState.IN_DEBATE: [TaskState.IN_EXECUTION, TaskState.BLOCKED],
+    TaskState.IN_DEBATE: [TaskState.IN_EXECUTION, TaskState.COMPLETED, TaskState.BLOCKED],
     TaskState.BLOCKED: [TaskState.IN_STRATEGY, TaskState.IN_EXECUTION, TaskState.ESCALATED],
 }
 
@@ -177,8 +177,11 @@ def transition_state(task_id: str, to_state: str, actor: str):
         from_state = task["state"]
 
         # 验证状态转换是否合法
-        if to_state not in [s.value for s in STATE_TRANSITIONS.get(TaskState(from_state), [])]:
-            emit_error(f"非法状态转换: {from_state} -> {to_state}")
+        allowed_states = STATE_TRANSITIONS.get(TaskState(from_state), [])
+        allowed_state_values = [s.value for s in allowed_states]
+        if to_state not in allowed_state_values:
+            allowed_list = ", ".join(allowed_state_values)
+            emit_error(f"非法状态转换: {from_state} -> {to_state}。允许的目标状态: {allowed_list}")
             return
 
         # L3 任务完成前必须有决策履历
