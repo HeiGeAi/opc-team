@@ -2535,6 +2535,8 @@
 
     function presetIsActive(agent, preset) {
       const config = agent.model_config || {};
+      // 自定义模型选项没有 payload，永远不激活
+      if (!preset.payload) return false;
       if ((config.source || "default") !== preset.payload.source) return false;
       if (preset.payload.source !== "custom_api") return true;
       return (config.provider || "") === (preset.payload.provider || "") &&
