@@ -1,7 +1,7 @@
 {
   "name": "opc_team",
-  "description": "OPC Team - 跨平台 AI Agent 协作框架。负责任务管理、决策履历、风险评分、三级记忆系统。",
-  "version": "4.2.3",
+  "description": "OPC Team - 跨平台 AI Agent 协作框架。负责任务管理、决策履历、风险评分、三级记忆系统、agent 状态看板与模型路由。",
+  "version": "4.3.0",
   "tools": [
     {
       "name": "task_create",
@@ -342,6 +342,223 @@
           }
         },
         "required": ["task_id"]
+      }
+    },
+    {
+      "name": "agent_list",
+      "description": "列出主 agent / sub-agent 的状态与模型配置",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "agent_get",
+      "description": "获取某个 agent 的详情",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "agent_id": {
+            "type": "string",
+            "description": "agent ID，如 ceo / coo / strategist / tech"
+          }
+        },
+        "required": ["agent_id"]
+      }
+    },
+    {
+      "name": "agent_set_status",
+      "description": "更新某个 agent 的运行状态",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "agent_id": {
+            "type": "string",
+            "description": "agent ID"
+          },
+          "status": {
+            "type": "string",
+            "description": "agent 状态",
+            "enum": ["idle", "running", "waiting", "blocked", "completed", "offline"]
+          },
+          "task_id": {
+            "type": "string",
+            "description": "当前任务 ID"
+          },
+          "task_title": {
+            "type": "string",
+            "description": "当前任务标题"
+          },
+          "task_state": {
+            "type": "string",
+            "description": "任务状态"
+          },
+          "task_level": {
+            "type": "string",
+            "description": "任务等级"
+          },
+          "progress": {
+            "type": "integer",
+            "description": "当前进度 0-100",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "message": {
+            "type": "string",
+            "description": "状态说明"
+          },
+          "assignment_id": {
+            "type": "string",
+            "description": "当前派发任务 ID，如 A001"
+          },
+          "assigned_by": {
+            "type": "string",
+            "description": "派发方 agent ID，如 ceo"
+          }
+        },
+        "required": ["agent_id", "status"]
+      }
+    },
+    {
+      "name": "agent_dispatch",
+      "description": "由主 agent 给 sub-agent 派发任务",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "from_agent": {
+            "type": "string",
+            "description": "派发方 agent ID，通常是 ceo"
+          },
+          "to_agent": {
+            "type": "string",
+            "description": "接收方 sub-agent ID"
+          },
+          "title": {
+            "type": "string",
+            "description": "派发标题"
+          },
+          "brief": {
+            "type": "string",
+            "description": "任务简报"
+          },
+          "task_id": {
+            "type": "string",
+            "description": "关联主任务 ID"
+          },
+          "task_title": {
+            "type": "string",
+            "description": "关联主任务标题"
+          },
+          "auto_start": {
+            "type": "boolean",
+            "description": "是否派发后直接进入 running"
+          }
+        },
+        "required": ["from_agent", "to_agent", "title", "brief"]
+      }
+    },
+    {
+      "name": "assignment_list",
+      "description": "列出主 agent 派发给 sub-agent 的任务",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "from_agent": {
+            "type": "string",
+            "description": "按派发方过滤"
+          },
+          "to_agent": {
+            "type": "string",
+            "description": "按接收方过滤"
+          },
+          "open_only": {
+            "type": "boolean",
+            "description": "是否只返回未关闭派发"
+          }
+        }
+      }
+    },
+    {
+      "name": "assignment_get",
+      "description": "查看单个派发任务详情",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "assignment_id": {
+            "type": "string",
+            "description": "派发任务 ID，如 A001"
+          }
+        },
+        "required": ["assignment_id"]
+      }
+    },
+    {
+      "name": "agent_set_model",
+      "description": "设置某个 agent 的模型路由",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "agent_id": {
+            "type": "string",
+            "description": "agent ID"
+          },
+          "source": {
+            "type": "string",
+            "description": "模型来源",
+            "enum": ["default", "platform_default", "custom_api"]
+          },
+          "provider": {
+            "type": "string",
+            "description": "provider，例如 openai / anthropic / deepseek"
+          },
+          "model": {
+            "type": "string",
+            "description": "模型名"
+          },
+          "api_base": {
+            "type": "string",
+            "description": "自定义 API Base"
+          },
+          "api_key_env": {
+            "type": "string",
+            "description": "API Key 对应环境变量名"
+          },
+          "temperature": {
+            "type": "number",
+            "description": "采样温度"
+          },
+          "max_tokens": {
+            "type": "integer",
+            "description": "最大输出 token"
+          },
+          "headers": {
+            "type": "object",
+            "description": "附加请求头"
+          }
+        },
+        "required": ["agent_id", "source"]
+      }
+    },
+    {
+      "name": "agent_resolve_model",
+      "description": "查看某个 agent 的最终生效模型配置",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "agent_id": {
+            "type": "string",
+            "description": "agent ID"
+          }
+        },
+        "required": ["agent_id"]
+      }
+    },
+    {
+      "name": "dashboard_summary",
+      "description": "读取 OPC 本地看板的聚合摘要",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
       }
     },
     {

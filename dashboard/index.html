@@ -1,0 +1,2856 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OPC Agent Board</title>
+  <style>
+    :root {
+      --ink: #12252d;
+      --paper: #f5f1ea;
+      --panel: rgba(255, 251, 245, 0.88);
+      --line: rgba(18, 37, 45, 0.1);
+      --shadow: 0 18px 48px rgba(27, 29, 31, 0.12);
+      --orange: #d36a2e;
+      --sand: #f0d9b7;
+      --leaf: #1f7d5d;
+      --sun: #c79218;
+      --sky: #2d6b9e;
+      --rose: #c45f55;
+      --slate: #5f717a;
+      --body: "Avenir Next", "PingFang SC", "Hiragino Sans GB", sans-serif;
+      --display: "Baskerville", "Iowan Old Style", "Songti SC", serif;
+      --mono: "SFMono-Regular", "Menlo", "Monaco", monospace;
+      --radius: 24px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--ink);
+      font-family: var(--body);
+      background:
+        radial-gradient(circle at 12% 10%, rgba(211, 106, 46, 0.2), transparent 30%),
+        radial-gradient(circle at 88% 12%, rgba(45, 107, 158, 0.14), transparent 24%),
+        linear-gradient(180deg, #efe7db 0%, #f7f3ed 42%, #efe8de 100%);
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background:
+        linear-gradient(rgba(18, 37, 45, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(18, 37, 45, 0.03) 1px, transparent 1px);
+      background-size: 28px 28px;
+      mask-image: linear-gradient(180deg, rgba(0,0,0,.65), transparent 88%);
+    }
+
+    .shell {
+      max-width: 1380px;
+      margin: 0 auto;
+      padding: 22px 18px 36px;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(12px);
+    }
+
+    .notice {
+      display: none;
+      margin-bottom: 14px;
+      padding: 12px 14px;
+      border-radius: 16px;
+      font-size: 14px;
+    }
+
+    .notice.ok {
+      display: block;
+      background: rgba(31, 125, 93, 0.12);
+      border: 1px solid rgba(31, 125, 93, 0.2);
+    }
+
+    .notice.error {
+      display: block;
+      background: rgba(196, 95, 85, 0.12);
+      border: 1px solid rgba(196, 95, 85, 0.2);
+    }
+
+    .eyebrow,
+    .meta,
+    .metric-label,
+    .status,
+    .chip,
+    label {
+      font-family: var(--mono);
+      letter-spacing: 0.04em;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: 1.25fr .95fr;
+      gap: 18px;
+      padding: 24px;
+      margin-bottom: 18px;
+      position: relative;
+      overflow: hidden;
+      align-items: stretch;
+      background:
+        linear-gradient(135deg, rgba(255,255,255,0.78), rgba(247, 240, 231, 0.66)),
+        radial-gradient(circle at 14% 20%, rgba(211, 106, 46, 0.12), transparent 26%);
+    }
+
+    .hero::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(112deg, transparent 0%, rgba(255,255,255,0.34) 18%, transparent 34%),
+        repeating-linear-gradient(90deg, rgba(18, 37, 45, 0.02) 0 1px, transparent 1px 24px);
+      opacity: 0.68;
+      pointer-events: none;
+    }
+
+    .hero::after {
+      content: "";
+      position: absolute;
+      right: -80px;
+      top: -110px;
+      width: 300px;
+      height: 300px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(211, 106, 46, 0.18), transparent 68%);
+      pointer-events: none;
+    }
+
+    .hero-copy {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      align-content: start;
+      gap: 16px;
+      min-width: 0;
+    }
+
+    .hero-topline {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(18, 37, 45, 0.12);
+      background: rgba(255,255,255,0.42);
+      font-size: 12px;
+      text-transform: uppercase;
+    }
+
+    .hero-live {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 14px;
+      border-radius: 999px;
+      background: rgba(18, 37, 45, 0.86);
+      color: rgba(255,255,255,0.94);
+      font-size: 12px;
+      font-family: var(--mono);
+      letter-spacing: 0.08em;
+      box-shadow: 0 12px 24px rgba(18, 37, 45, 0.14);
+    }
+
+    .hero-live::before {
+      content: "";
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: #9be29d;
+      box-shadow: 0 0 0 0 rgba(155, 226, 157, 0.45);
+      animation: pulse 2.2s infinite;
+    }
+
+    h1, h2, h3 {
+      margin: 0;
+      font-family: var(--display);
+      font-weight: 600;
+    }
+
+    h1 {
+      margin-top: 0;
+      font-size: clamp(2.7rem, 6vw, 5rem);
+      line-height: 0.94;
+    }
+
+    .hero-title-wrap {
+      position: relative;
+      padding: 12px 0 8px;
+      min-width: 0;
+    }
+
+    .hero-title-ribbon {
+      position: relative;
+      overflow: hidden;
+      border-radius: 999px;
+      border: 1px solid rgba(18, 37, 45, 0.08);
+      background:
+        linear-gradient(90deg, rgba(18, 37, 45, 0.03), rgba(255,255,255,0.52), rgba(18, 37, 45, 0.03));
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.64);
+      margin-bottom: 14px;
+      -webkit-mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
+      mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
+    }
+
+    .hero-title-ribbon::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(120deg, transparent 0%, rgba(255,255,255,0.72) 50%, transparent 100%);
+      transform: translateX(-130%);
+      animation: heroShine 5.8s ease-in-out infinite;
+      pointer-events: none;
+    }
+
+    .hero-title-track {
+      display: inline-flex;
+      align-items: center;
+      gap: 18px;
+      min-width: max-content;
+      padding: 10px 0;
+      white-space: nowrap;
+      font-family: var(--mono);
+      font-size: 12px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: rgba(18, 37, 45, 0.68);
+      animation: heroLoop 22s linear infinite;
+    }
+
+    .hero-title-track em {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: linear-gradient(180deg, rgba(211, 106, 46, 0.9), rgba(45, 107, 158, 0.9));
+      box-shadow: 0 0 0 4px rgba(211, 106, 46, 0.08);
+      flex: 0 0 auto;
+    }
+
+    .hero-title {
+      position: relative;
+      display: inline-flex;
+      align-items: flex-end;
+      gap: clamp(12px, 1.7vw, 24px);
+      white-space: nowrap;
+      letter-spacing: -0.05em;
+      text-shadow: 0 10px 24px rgba(18, 37, 45, 0.08);
+    }
+
+    .hero-title::after {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: -6px;
+      height: 10px;
+      border-radius: 999px;
+      background: linear-gradient(90deg, rgba(211, 106, 46, 0.16), rgba(45, 107, 158, 0.12), transparent);
+      filter: blur(10px);
+      opacity: 0.88;
+    }
+
+    .hero-title span {
+      position: relative;
+      z-index: 1;
+      display: inline-block;
+    }
+
+    .hero-title span:last-child {
+      font-size: 0.86em;
+      letter-spacing: -0.03em;
+      margin-bottom: 0.02em;
+    }
+
+    .lead {
+      margin: 0;
+      max-width: 62ch;
+      line-height: 1.72;
+      font-size: 15px;
+      color: rgba(18, 37, 45, 0.8);
+    }
+
+    .hero-signal-row {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .hero-signal {
+      position: relative;
+      padding: 14px 14px 12px;
+      border-radius: 18px;
+      overflow: hidden;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.72), rgba(255,255,255,0.5)),
+        radial-gradient(circle at 20% 20%, rgba(211, 106, 46, 0.1), transparent 46%);
+      border: 1px solid rgba(18, 37, 45, 0.08);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.65);
+    }
+
+    .hero-signal::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(110deg, transparent 0%, rgba(255,255,255,0.48) 35%, transparent 64%);
+      transform: translateX(-140%);
+      animation: heroShine 7.2s ease-in-out infinite;
+      animation-delay: calc(var(--delay, 0) * 1s);
+      pointer-events: none;
+    }
+
+    .hero-signal strong {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 13px;
+      font-family: var(--mono);
+      letter-spacing: 0.04em;
+    }
+
+    .hero-signal p {
+      margin: 0;
+      font-size: 12px;
+      color: rgba(18, 37, 45, 0.6);
+    }
+
+    .signal-wave {
+      display: flex;
+      align-items: end;
+      gap: 4px;
+      height: 28px;
+      margin-bottom: 8px;
+    }
+
+    .signal-wave span {
+      width: 6px;
+      border-radius: 999px;
+      background: linear-gradient(180deg, rgba(45, 107, 158, 0.9), rgba(211, 106, 46, 0.85));
+      animation: signalBeat 1.9s ease-in-out infinite;
+      animation-delay: calc(var(--i, 0) * 0.14s);
+      box-shadow: 0 6px 14px rgba(45, 107, 158, 0.12);
+    }
+
+    .hero-chips,
+    .metric-strip,
+    .tiny-row,
+    .sub-meta,
+    .task-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .chip {
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.5);
+      border: 1px solid rgba(18, 37, 45, 0.1);
+      font-size: 12px;
+    }
+
+    .hero-presence {
+      position: relative;
+      padding: 24px;
+      border-radius: 24px;
+      background:
+        radial-gradient(circle at 20% 20%, rgba(208, 141, 87, 0.16), transparent 32%),
+        linear-gradient(145deg, rgba(255,255,255,0.76), rgba(250, 243, 233, 0.58));
+      border: 1px solid rgba(18, 37, 45, 0.08);
+      display: grid;
+      grid-template-columns: 220px 1fr;
+      gap: 22px;
+      min-height: 100%;
+      overflow: hidden;
+    }
+
+    .hero-presence::before,
+    .hero-presence::after {
+      content: "";
+      position: absolute;
+      border-radius: 50%;
+      pointer-events: none;
+    }
+
+    .hero-presence::before {
+      width: 220px;
+      height: 220px;
+      left: -60px;
+      bottom: -110px;
+      background: radial-gradient(circle, rgba(45, 107, 158, 0.1), transparent 72%);
+    }
+
+    .hero-presence::after {
+      width: 280px;
+      height: 280px;
+      right: -80px;
+      top: -120px;
+      background: radial-gradient(circle, rgba(211, 106, 46, 0.12), transparent 72%);
+    }
+
+    .presence-stage {
+      position: relative;
+      display: grid;
+      align-content: center;
+      justify-items: center;
+      gap: 12px;
+      min-height: 220px;
+      padding: 12px 8px;
+      z-index: 1;
+    }
+
+    .presence-stage::before {
+      content: "";
+      position: absolute;
+      inset: 18px 8px 26px;
+      border-radius: 38px;
+      background:
+        radial-gradient(circle at 50% 30%, rgba(255,255,255,0.94), rgba(255,255,255,0.36) 52%, rgba(255,255,255,0) 74%),
+        linear-gradient(180deg, rgba(255,255,255,0.22), rgba(18, 37, 45, 0.05));
+      border: 1px solid rgba(18, 37, 45, 0.06);
+    }
+
+    .presence-cluster,
+    .presence-pulse,
+    .presence-kpis,
+    .status-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .presence-cluster {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      width: 100%;
+      position: relative;
+      z-index: 2;
+    }
+
+    .presence-chip {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 36px;
+      padding: 6px 8px;
+      border-radius: 16px;
+      background: rgba(255,255,255,0.65);
+      border: 1px solid rgba(18, 37, 45, 0.08);
+      font-size: 11px;
+      font-family: var(--mono);
+      color: rgba(18, 37, 45, 0.76);
+    }
+
+    .presence-copy {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      align-content: start;
+      gap: 14px;
+    }
+
+    .presence-copy .subline {
+      max-width: 40ch;
+    }
+
+    .presence-pulse {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .pulse-pill,
+    .presence-kpi,
+    .status-card {
+      padding: 12px 14px;
+      border-radius: 18px;
+      background: rgba(255,255,255,0.54);
+      border: 1px solid rgba(18, 37, 45, 0.08);
+    }
+
+    .pulse-pill strong,
+    .presence-kpi strong {
+      display: block;
+      margin-top: 6px;
+      font-size: 1.08rem;
+      font-family: var(--display);
+      font-weight: 600;
+    }
+
+    .pulse-pill span,
+    .presence-kpi span {
+      display: block;
+      font-size: 11px;
+      color: rgba(18, 37, 45, 0.58);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .presence-kpis {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .status-board {
+      display: grid;
+      gap: 18px;
+    }
+
+    .metric-strip {
+      margin-top: 16px;
+    }
+
+    .metric-pill {
+      min-width: 126px;
+      padding: 12px 14px;
+      border-radius: 18px;
+      background: rgba(18, 37, 45, 0.045);
+      border: 1px solid rgba(18, 37, 45, 0.06);
+    }
+
+    .metric-label {
+      font-size: 11px;
+      color: rgba(18, 37, 45, 0.58);
+      text-transform: uppercase;
+    }
+
+    .metric-value {
+      display: block;
+      margin-top: 8px;
+      font-size: 1.5rem;
+      font-family: var(--display);
+      line-height: 1;
+    }
+
+    .control-row {
+      display: grid;
+      grid-template-columns: 1.15fr .85fr;
+      gap: 18px;
+      margin-bottom: 18px;
+    }
+
+    .control-card,
+    .section {
+      padding: 18px;
+    }
+
+    .section-head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .section-head h2 {
+      font-size: 1.65rem;
+    }
+
+    .meta {
+      color: rgba(18, 37, 45, 0.58);
+      font-size: 11px;
+    }
+
+    form {
+      display: grid;
+      gap: 10px;
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    label {
+      display: grid;
+      gap: 6px;
+      font-size: 11px;
+      color: rgba(18, 37, 45, 0.65);
+      text-transform: uppercase;
+    }
+
+    input, select, textarea, button {
+      width: 100%;
+      border: 1px solid rgba(18, 37, 45, 0.12);
+      border-radius: 14px;
+      background: rgba(255,255,255,0.74);
+      color: var(--ink);
+      padding: 10px 12px;
+      font: inherit;
+    }
+
+    textarea {
+      min-height: 82px;
+      resize: vertical;
+    }
+
+    button {
+      cursor: pointer;
+      font-weight: 700;
+      background: linear-gradient(90deg, #20333d, #315362);
+      color: #fff;
+      border: none;
+      transition: transform .18s ease, box-shadow .18s ease;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 10px 24px rgba(32, 51, 61, 0.18);
+    }
+
+    details {
+      margin-top: 12px;
+      border-top: 1px dashed rgba(18, 37, 45, 0.12);
+      padding-top: 12px;
+    }
+
+    summary {
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 700;
+      color: rgba(18, 37, 45, 0.72);
+      letter-spacing: 0.02em;
+    }
+
+    .main-layout {
+      display: grid;
+      grid-template-columns: 1.25fr .75fr;
+      gap: 18px;
+    }
+
+    .agent-grid,
+    .event-list {
+      display: grid;
+      gap: 14px;
+    }
+
+    .agent-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .agent-card,
+    .event-card,
+    .status-card {
+      padding: 16px;
+      border-radius: 20px;
+      border: 1px solid rgba(18, 37, 45, 0.08);
+      background: rgba(255,255,255,0.46);
+      animation: rise .45s ease both;
+    }
+
+    .agent-card {
+      position: relative;
+      overflow: hidden;
+      transition: transform .18s ease, box-shadow .18s ease;
+    }
+
+    .agent-card::after {
+      content: "";
+      position: absolute;
+      right: -34px;
+      bottom: -46px;
+      width: 130px;
+      height: 130px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(255,255,255,0.34), transparent 72%);
+      pointer-events: none;
+    }
+
+    .agent-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 16px 34px rgba(18, 37, 45, 0.08);
+    }
+
+    .agent-head {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 14px;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .avatar-shell {
+      --state-color: var(--slate);
+      --ring-color: rgba(95, 113, 122, 0.2);
+      --progress-value: 0%;
+      --accent: #d36a2e;
+      --accent-soft: #efc791;
+      --accent-deep: #895131;
+      --hair: #233843;
+      --skin: #ffd8b6;
+      --head-radius: 46% 46% 42% 42% / 48% 48% 40% 40%;
+      --face-radius: 14px 14px 17px 17px;
+      --body-radius: 20px 20px 18px 18px / 24px 24px 16px 16px;
+      --face-width: 34px;
+      --face-height: 26px;
+      --hair-front-top: 6px;
+      --hair-front-height: 20px;
+      --hair-front-radius: 58% 58% 34% 34% / 70% 70% 24% 24%;
+      --hair-back-top: 15px;
+      --hair-back-height: 0px;
+      --hair-back-opacity: 0;
+      --hair-back-radius: 42% 42% 28% 28% / 18% 18% 72% 72%;
+      --hair-side-width: 8px;
+      --hair-side-height: 0px;
+      --hair-side-opacity: 0;
+      position: relative;
+      width: 94px;
+      height: 118px;
+      display: grid;
+      place-items: end center;
+      padding-bottom: 10px;
+      flex-shrink: 0;
+      isolation: isolate;
+    }
+
+    .avatar-shell.large {
+      width: 126px;
+      height: 150px;
+    }
+
+    .avatar-shell.gender-f {
+      --head-radius: 46% 46% 38% 38% / 42% 42% 50% 50%;
+      --face-radius: 15px 15px 18px 18px;
+      --body-radius: 22px 22px 20px 20px / 28px 28px 18px 18px;
+      --hair-side-width: 10px;
+      --ornament: #c97a91;
+      --ornament-soft: rgba(247, 211, 225, 0.95);
+      --dress-glow: rgba(243, 200, 218, 0.26);
+    }
+
+    .avatar-shell.gender-m {
+      --head-radius: 42% 42% 44% 44% / 44% 44% 42% 42%;
+      --ornament: #425c69;
+      --ornament-soft: rgba(213, 226, 233, 0.92);
+      --dress-glow: rgba(157, 182, 194, 0.18);
+    }
+
+    .avatar-shell.gender-n {
+      --head-radius: 44% 44% 42% 42% / 46% 46% 42% 42%;
+      --face-radius: 14px 14px 16px 16px;
+      --ornament: #b98a34;
+      --ornament-soft: rgba(245, 228, 184, 0.94);
+      --dress-glow: rgba(233, 205, 144, 0.22);
+    }
+
+    .avatar-shell.hair-wave {
+      --hair-back-height: 28px;
+      --hair-back-opacity: 1;
+      --hair-side-height: 18px;
+      --hair-side-opacity: 1;
+      --hair-front-radius: 62% 62% 30% 30% / 74% 74% 26% 26%;
+    }
+
+    .avatar-shell.hair-bob {
+      --hair-back-height: 24px;
+      --hair-back-opacity: 1;
+      --hair-side-height: 22px;
+      --hair-side-opacity: 1;
+      --hair-back-radius: 34% 34% 18% 18% / 16% 16% 74% 74%;
+    }
+
+    .avatar-shell.hair-bun {
+      --hair-back-height: 20px;
+      --hair-back-opacity: 1;
+      --hair-side-height: 18px;
+      --hair-side-opacity: 1;
+      --hair-back-radius: 42% 42% 24% 24% / 18% 18% 70% 70%;
+    }
+
+    .avatar-shell.hair-crop {
+      --hair-front-height: 17px;
+      --hair-side-height: 8px;
+      --hair-side-opacity: 0.56;
+    }
+
+    .avatar-shell.hair-slick {
+      --hair-back-height: 8px;
+      --hair-back-opacity: 0.68;
+      --hair-side-height: 8px;
+      --hair-side-opacity: 0.48;
+      --hair-front-top: 5px;
+      --hair-front-height: 17px;
+      --hair-front-radius: 72% 72% 32% 32% / 62% 62% 18% 18%;
+    }
+
+    .avatar-shell.running {
+      --state-color: var(--leaf);
+      --ring-color: rgba(31, 125, 93, 0.24);
+    }
+
+    .avatar-shell.waiting,
+    .avatar-shell.queued {
+      --state-color: var(--sun);
+      --ring-color: rgba(199, 146, 24, 0.22);
+    }
+
+    .avatar-shell.blocked,
+    .avatar-shell.canceled {
+      --state-color: var(--rose);
+      --ring-color: rgba(196, 95, 85, 0.22);
+    }
+
+    .avatar-shell.completed,
+    .avatar-shell.done {
+      --state-color: var(--sky);
+      --ring-color: rgba(45, 107, 158, 0.2);
+    }
+
+    .avatar-shell::before {
+      content: "";
+      position: absolute;
+      inset: 16px 12px 28px;
+      border-radius: 50%;
+      background:
+        radial-gradient(circle at 50% 32%, rgba(255,255,255,0.98), rgba(255,255,255,0.44) 54%, rgba(255,255,255,0) 72%),
+        radial-gradient(circle at 50% 70%, rgba(18, 37, 45, 0.08), transparent 74%);
+      opacity: 0.92;
+      pointer-events: none;
+    }
+
+    .progress-orbit,
+    .signal-ring,
+    .signal-ring.outer {
+      position: absolute;
+      inset: 8px 8px 24px;
+      border-radius: 50%;
+    }
+
+    .progress-orbit {
+      background:
+        conic-gradient(var(--state-color) var(--progress-value), rgba(18, 37, 45, 0.08) 0);
+      mask: radial-gradient(circle at center, transparent 63%, #000 65%);
+      opacity: 0.9;
+    }
+
+    .signal-ring {
+      border: 1px dashed var(--ring-color);
+      animation: ringSpin 16s linear infinite;
+    }
+
+    .signal-ring.outer {
+      inset: 0 0 16px;
+      border-style: solid;
+      opacity: 0.36;
+      animation-direction: reverse;
+      animation-duration: 12s;
+    }
+
+    .status-beacon {
+      position: absolute;
+      top: 18px;
+      right: 10px;
+      width: 11px;
+      height: 11px;
+      border-radius: 50%;
+      background: var(--state-color);
+      border: 2px solid rgba(255,255,255,0.82);
+      box-shadow: 0 0 0 0 rgba(18, 37, 45, 0.15);
+      z-index: 3;
+    }
+
+    .mascot {
+      position: relative;
+      width: 68px;
+      height: 96px;
+      animation: drift 3.8s ease-in-out infinite;
+      z-index: 2;
+    }
+
+    .avatar-shell.large .mascot {
+      width: 86px;
+      height: 116px;
+    }
+
+    .crown {
+      position: absolute;
+      left: 50%;
+      top: -4px;
+      width: 28px;
+      height: 18px;
+      transform: translateX(-50%);
+      clip-path: polygon(6% 100%, 18% 48%, 34% 100%, 50% 36%, 66% 100%, 82% 48%, 94% 100%);
+      background: linear-gradient(180deg, #ffe29e, #d79c2a);
+      filter: drop-shadow(0 6px 8px rgba(215, 156, 42, 0.3));
+      z-index: 4;
+    }
+
+    .avatar-shell.large .crown {
+      top: -6px;
+      width: 34px;
+      height: 22px;
+    }
+
+    .head-shell {
+      position: absolute;
+      left: 50%;
+      top: 6px;
+      width: 48px;
+      height: 54px;
+      transform: translateX(-50%);
+      border-radius: var(--head-radius);
+      background: linear-gradient(180deg, rgba(255,255,255,0.9), rgba(255,255,255,0.72));
+      border: 1px solid rgba(18, 37, 45, 0.1);
+      box-shadow:
+        inset 0 -8px 0 rgba(255,255,255,0.22),
+        0 10px 18px rgba(18, 37, 45, 0.09);
+    }
+
+    .avatar-shell.large .head-shell {
+      width: 58px;
+      height: 64px;
+      top: 8px;
+    }
+
+    .head-shell::before {
+      content: "";
+      position: absolute;
+      left: 7px;
+      right: 12px;
+      top: 4px;
+      height: 18px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.85), rgba(255,255,255,0) 72%);
+      pointer-events: none;
+    }
+
+    .hair {
+      position: absolute;
+      background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0)) , var(--hair);
+    }
+
+    .hair-back {
+      position: absolute;
+      left: 4px;
+      right: 4px;
+      top: var(--hair-back-top);
+      height: var(--hair-back-height);
+      opacity: var(--hair-back-opacity);
+      border-radius: var(--hair-back-radius);
+      z-index: -1;
+    }
+
+    .hair-front {
+      left: 6px;
+      right: 6px;
+      top: var(--hair-front-top);
+      height: var(--hair-front-height);
+      border-radius: var(--hair-front-radius);
+    }
+
+    .hair-side {
+      top: 19px;
+      width: var(--hair-side-width);
+      height: var(--hair-side-height);
+      opacity: var(--hair-side-opacity);
+      border-radius: 0 0 12px 12px;
+    }
+
+    .hair-side.left {
+      left: 3px;
+      transform: rotate(8deg);
+    }
+
+    .hair-side.right {
+      right: 3px;
+      transform: rotate(-8deg);
+    }
+
+    .bun {
+      display: none;
+      position: absolute;
+      top: 5px;
+      right: 6px;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--hair);
+      box-shadow: inset 0 -2px 0 rgba(255,255,255,0.12);
+    }
+
+    .avatar-shell.hair-bun .bun {
+      display: block;
+    }
+
+    .avatar-shell.large .hair-back {
+      top: calc(var(--hair-back-top) + 1px);
+      height: calc(var(--hair-back-height) + 4px);
+    }
+
+    .avatar-shell.large .hair-front {
+      top: calc(var(--hair-front-top) + 1px);
+      height: calc(var(--hair-front-height) + 4px);
+    }
+
+    .avatar-shell.large .hair-side {
+      top: 23px;
+      height: calc(var(--hair-side-height) + 4px);
+    }
+
+    .avatar-shell.gender-f .hair-back {
+      left: 2px;
+      right: 2px;
+      border-radius: 40% 40% 20% 20% / 18% 18% 84% 84%;
+      box-shadow: inset 0 -4px 0 rgba(255,255,255,0.08);
+    }
+
+    .avatar-shell.gender-f .hair-side {
+      width: calc(var(--hair-side-width) + 2px);
+      top: 18px;
+      border-radius: 0 0 16px 16px;
+    }
+
+    .avatar-shell.gender-f.hair-wave .hair-back,
+    .avatar-shell.gender-f.hair-bob .hair-back {
+      height: calc(var(--hair-back-height) + 8px);
+    }
+
+    .avatar-shell.gender-f.hair-wave .hair-side,
+    .avatar-shell.gender-f.hair-bob .hair-side {
+      height: calc(var(--hair-side-height) + 8px);
+    }
+
+    .avatar-shell.gender-f.hair-bun .hair-side {
+      height: calc(var(--hair-side-height) + 5px);
+    }
+
+    .avatar-shell.gender-f .bun {
+      top: 2px;
+      right: 4px;
+      width: 16px;
+      height: 16px;
+      box-shadow:
+        inset 0 -2px 0 rgba(255,255,255,0.14),
+        0 0 0 2px rgba(255,255,255,0.1);
+    }
+
+    .avatar-shell.gender-f .bun::after {
+      content: "";
+      position: absolute;
+      left: 2px;
+      right: 2px;
+      top: 5px;
+      height: 4px;
+      border-radius: 999px;
+      background: rgba(244, 198, 210, 0.78);
+      transform: rotate(18deg);
+    }
+
+    .avatar-shell.gender-m .hair-back {
+      left: 5px;
+      right: 5px;
+      border-radius: 42% 42% 30% 30% / 18% 18% 70% 70%;
+    }
+
+    .avatar-shell.gender-m .hair-front {
+      box-shadow: inset 0 -2px 0 rgba(255,255,255,0.08);
+    }
+
+    .ear {
+      position: absolute;
+      top: 27px;
+      width: 8px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--skin);
+      opacity: 0.9;
+    }
+
+    .ear.left { left: -2px; }
+    .ear.right { right: -2px; }
+
+    .face {
+      position: absolute;
+      left: 50%;
+      bottom: 8px;
+      width: var(--face-width);
+      height: var(--face-height);
+      transform: translateX(-50%);
+      border-radius: var(--face-radius);
+      background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0)), var(--skin);
+      box-shadow: inset 0 -4px 0 rgba(255,255,255,0.18);
+    }
+
+    .avatar-shell.large .face {
+      width: calc(var(--face-width) + 6px);
+      height: calc(var(--face-height) + 4px);
+      bottom: 10px;
+    }
+
+    .avatar-shell.gender-f .face {
+      width: calc(var(--face-width) - 2px);
+      border-radius: 16px 16px 20px 20px;
+    }
+
+    .avatar-shell.gender-m .face {
+      width: calc(var(--face-width) + 1px);
+      border-radius: 14px 14px 16px 16px;
+    }
+
+    .brow,
+    .eye,
+    .blush,
+    .mouth {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+    }
+
+    .brow {
+      top: 7px;
+      width: 8px;
+      height: 2px;
+      border-radius: 999px;
+      background: rgba(35, 56, 67, 0.7);
+    }
+
+    .avatar-shell.large .brow {
+      top: 8px;
+      width: 9px;
+    }
+
+    .avatar-shell.gender-f .brow {
+      width: 7px;
+      background: rgba(35, 56, 67, 0.52);
+    }
+
+    .avatar-shell.gender-m .brow {
+      width: 9px;
+      height: 2.4px;
+      background: rgba(35, 56, 67, 0.86);
+    }
+
+    .brow.left {
+      margin-left: -8px;
+      transform: translateX(-50%) rotate(10deg);
+    }
+
+    .brow.right {
+      margin-left: 8px;
+      transform: translateX(-50%) rotate(-10deg);
+    }
+
+    .eye {
+      top: 11px;
+      width: 4px;
+      height: 6px;
+      border-radius: 999px;
+      background: #17303a;
+      animation: blink 5.6s infinite;
+    }
+
+    .avatar-shell.large .eye { top: 13px; }
+
+    .eye.left { margin-left: -8px; }
+    .eye.right { margin-left: 8px; }
+
+    .avatar-shell.gender-f .eye {
+      width: 4.8px;
+      height: 6.8px;
+    }
+
+    .avatar-shell.gender-f .eye::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: -1px;
+      width: 8px;
+      height: 3px;
+      transform: translateX(-50%);
+      border-top: 1.5px solid rgba(35, 56, 67, 0.34);
+      border-radius: 999px;
+    }
+
+    .blush {
+      top: 15px;
+      width: 8px;
+      height: 4px;
+      border-radius: 999px;
+      background: rgba(227, 122, 116, 0.34);
+    }
+
+    .avatar-shell.large .blush {
+      top: 18px;
+      width: 10px;
+    }
+
+    .avatar-shell.gender-f .blush {
+      width: 9px;
+      background: rgba(224, 124, 144, 0.32);
+    }
+
+    .blush.left { margin-left: -13px; }
+    .blush.right { margin-left: 13px; }
+
+    .mouth {
+      bottom: 4px;
+      width: 10px;
+      height: 6px;
+      border-bottom: 2px solid #b56a56;
+      border-radius: 0 0 10px 10px;
+    }
+
+    .avatar-shell.gender-f .mouth {
+      width: 11px;
+      border-bottom-color: #bf6d7a;
+    }
+
+    .glasses {
+      display: none;
+      position: absolute;
+      left: 50%;
+      top: 10px;
+      width: 28px;
+      height: 10px;
+      transform: translateX(-50%);
+      background: linear-gradient(180deg, transparent 45%, rgba(35, 56, 67, 0.4) 45%, rgba(35, 56, 67, 0.4) 55%, transparent 55%);
+    }
+
+    .glasses::before,
+    .glasses::after {
+      content: "";
+      position: absolute;
+      top: 0;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      border: 1.5px solid rgba(35, 56, 67, 0.56);
+      background: rgba(255,255,255,0.1);
+    }
+
+    .glasses::before { left: 0; }
+    .glasses::after { right: 0; }
+
+    .earring {
+      display: none;
+      position: absolute;
+      top: 26px;
+      width: 4px;
+      height: 8px;
+      border-radius: 0 0 999px 999px;
+      border: 1.5px solid rgba(245, 204, 122, 0.82);
+      border-top: none;
+    }
+
+    .earring.left { left: -1px; }
+    .earring.right { right: -1px; }
+
+    .avatar-shell.gender-f .earring {
+      top: 25px;
+      width: 5px;
+      height: 10px;
+      border-width: 2px;
+      border-color: rgba(245, 204, 122, 0.94);
+      border-top: none;
+    }
+
+    .avatar-shell.gender-f .earring::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      bottom: -4px;
+      width: 4px;
+      height: 4px;
+      transform: translateX(-50%);
+      border-radius: 50%;
+      background: rgba(255, 247, 203, 0.96);
+      box-shadow: 0 0 0 1px rgba(255,255,255,0.28);
+    }
+
+    .body-core {
+      position: absolute;
+      left: 50%;
+      top: 48px;
+      width: 50px;
+      height: 42px;
+      transform: translateX(-50%);
+      border-radius: var(--body-radius);
+      background: linear-gradient(180deg, var(--accent-soft), var(--accent) 62%, var(--accent-deep));
+      border: 1px solid rgba(18, 37, 45, 0.08);
+      box-shadow:
+        inset 0 -8px 0 rgba(18, 37, 45, 0.08),
+        0 12px 20px rgba(18, 37, 45, 0.12);
+    }
+
+    .body-core::before {
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: 6px;
+      width: 28px;
+      height: 12px;
+      transform: translateX(-50%);
+      opacity: 0;
+    }
+
+    .body-core::after {
+      content: "";
+      position: absolute;
+      left: 7px;
+      right: 7px;
+      bottom: 7px;
+      height: 10px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.12);
+    }
+
+    .avatar-shell.large .body-core {
+      top: 60px;
+      width: 62px;
+      height: 48px;
+    }
+
+    .avatar-shell.gender-f .body-core {
+      width: 48px;
+      border-radius: 24px 24px 18px 18px / 30px 30px 16px 16px;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.22), rgba(255,255,255,0)),
+        linear-gradient(180deg, color-mix(in srgb, var(--accent-soft) 86%, white), color-mix(in srgb, var(--accent) 78%, white) 64%, var(--accent-deep));
+      box-shadow:
+        inset 0 -8px 0 rgba(18, 37, 45, 0.08),
+        0 12px 20px rgba(18, 37, 45, 0.1),
+        0 0 0 6px var(--dress-glow);
+    }
+
+    .avatar-shell.gender-m .body-core {
+      width: 52px;
+      border-radius: 18px 18px 16px 16px / 22px 22px 14px 14px;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.1), rgba(255,255,255,0)),
+        linear-gradient(180deg, color-mix(in srgb, var(--accent-soft) 72%, white), var(--accent) 62%, color-mix(in srgb, var(--accent-deep) 88%, black));
+      box-shadow:
+        inset 0 -8px 0 rgba(18, 37, 45, 0.08),
+        0 12px 20px rgba(18, 37, 45, 0.12),
+        0 0 0 4px var(--dress-glow);
+    }
+
+    .avatar-shell.gender-n .body-core {
+      box-shadow:
+        inset 0 -8px 0 rgba(18, 37, 45, 0.08),
+        0 12px 20px rgba(18, 37, 45, 0.12),
+        0 0 0 5px var(--dress-glow);
+    }
+
+    .avatar-shell.outfit-tailored .body-core::before {
+      opacity: 1;
+      clip-path: polygon(0 0, 34% 0, 50% 100%, 66% 0, 100% 0, 72% 94%, 50% 36%, 28% 94%);
+      background: rgba(255,255,255,0.74);
+    }
+
+    .avatar-shell.outfit-soft .body-core::before {
+      opacity: 1;
+      width: 30px;
+      height: 10px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.72);
+    }
+
+    .avatar-shell.gender-f.outfit-soft .body-core::before {
+      width: 24px;
+      height: 12px;
+      clip-path: polygon(0 28%, 30% 28%, 50% 0, 70% 28%, 100% 28%, 76% 62%, 88% 100%, 50% 72%, 12% 100%, 24% 62%);
+      border-radius: 0;
+      background: rgba(255,255,255,0.82);
+    }
+
+    .avatar-shell.gender-f.outfit-tailored .body-core::before {
+      width: 24px;
+      clip-path: polygon(0 0, 28% 0, 50% 100%, 72% 0, 100% 0, 50% 38%);
+    }
+
+    .avatar-shell.outfit-tech .body-core::before {
+      opacity: 1;
+      inset: 6px 8px auto;
+      width: auto;
+      height: 13px;
+      transform: none;
+      border-radius: 14px 14px 8px 8px;
+      background: rgba(255,255,255,0.18);
+      border: 1px solid rgba(255,255,255,0.16);
+    }
+
+    .collar {
+      position: absolute;
+      left: 50%;
+      top: 6px;
+      width: 26px;
+      height: 12px;
+      transform: translateX(-50%);
+      border-radius: 999px 999px 12px 12px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(255,255,255,0.52));
+    }
+
+    .badge-mark {
+      position: absolute;
+      left: 50%;
+      top: 16px;
+      width: 22px;
+      height: 22px;
+      transform: translateX(-50%);
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.26);
+      border: 1px solid rgba(255,255,255,0.3);
+      color: rgba(255,255,255,0.94);
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 700;
+      text-shadow: 0 1px 0 rgba(18, 37, 45, 0.12);
+    }
+
+    .neck-accent {
+      display: none;
+      position: absolute;
+      left: 50%;
+      top: 11px;
+      transform: translateX(-50%);
+    }
+
+    .avatar-shell.accessory-tie .neck-accent {
+      display: block;
+      width: 12px;
+      height: 18px;
+      background: linear-gradient(180deg, rgba(35, 56, 67, 0.88), rgba(35, 56, 67, 0.64));
+      clip-path: polygon(50% 0, 90% 26%, 72% 100%, 28% 100%, 10% 26%);
+    }
+
+    .avatar-shell.accessory-scarf .neck-accent {
+      display: block;
+      width: 28px;
+      height: 12px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.8);
+      box-shadow: inset 0 -4px 0 rgba(255,255,255,0.34);
+    }
+
+    .avatar-shell.accessory-brooch .neck-accent {
+      display: block;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: linear-gradient(180deg, #fff7cb, #f2c560);
+      box-shadow: 0 0 0 3px rgba(255,255,255,0.18);
+    }
+
+    .avatar-shell.gender-f.accessory-brooch .neck-accent {
+      background: linear-gradient(180deg, #fff2f7, #dea0b7);
+      box-shadow: 0 0 0 3px rgba(255,255,255,0.22);
+    }
+
+    .avatar-shell.gender-f.accessory-scarf .neck-accent {
+      background: linear-gradient(180deg, rgba(255, 240, 246, 0.96), rgba(236, 195, 212, 0.72));
+    }
+
+    .avatar-shell.gender-m.accessory-scarf .neck-accent {
+      background: linear-gradient(180deg, rgba(240, 247, 250, 0.92), rgba(204, 222, 230, 0.68));
+    }
+
+    .avatar-shell.gender-m.accessory-tie .neck-accent {
+      background: linear-gradient(180deg, rgba(41, 58, 69, 0.92), rgba(24, 38, 48, 0.78));
+    }
+
+    .avatar-shell.accessory-glasses .glasses {
+      display: block;
+    }
+
+    .avatar-shell.accessory-earring .earring {
+      display: block;
+    }
+
+
+    .avatar-shell.large .badge-mark {
+      top: 18px;
+      width: 26px;
+      height: 26px;
+      font-size: 12px;
+    }
+
+    .avatar-shell.gender-f .badge-mark {
+      background: rgba(255, 246, 250, 0.28);
+      border-color: rgba(255,255,255,0.42);
+      color: rgba(255,255,255,0.98);
+    }
+
+    .avatar-shell.gender-m .badge-mark {
+      background: rgba(236, 243, 247, 0.18);
+      border-color: rgba(255,255,255,0.24);
+    }
+
+    .arm,
+    .leg {
+      position: absolute;
+      transform-origin: top center;
+    }
+
+    .arm {
+      top: 54px;
+      width: 14px;
+      height: 32px;
+      border-radius: 999px;
+      background: linear-gradient(180deg, var(--accent-soft), var(--accent));
+      border: 1px solid rgba(18, 37, 45, 0.06);
+      box-shadow: inset 0 -6px 0 rgba(18, 37, 45, 0.06);
+    }
+
+    .arm::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      bottom: -1px;
+      width: 12px;
+      height: 12px;
+      transform: translateX(-50%);
+      border-radius: 50%;
+      background: var(--skin);
+      border: 1px solid rgba(18, 37, 45, 0.08);
+    }
+
+    .avatar-shell.large .arm {
+      top: 66px;
+      width: 16px;
+      height: 38px;
+    }
+
+    .avatar-shell.gender-f .arm.left { left: 7px; }
+    .avatar-shell.gender-f .arm.right { right: 7px; }
+    .avatar-shell.gender-m .arm.left { left: 4px; }
+    .avatar-shell.gender-m .arm.right { right: 4px; }
+
+    .arm.left { left: 5px; animation: armFloatLeft 2.9s ease-in-out infinite; }
+    .arm.right { right: 5px; animation: armFloatRight 2.9s ease-in-out infinite; }
+
+    .leg {
+      top: 82px;
+      width: 16px;
+      height: 26px;
+      border-radius: 999px;
+      background: linear-gradient(180deg, #ffffff, #dce4e8);
+      border: 1px solid rgba(18, 37, 45, 0.06);
+    }
+
+    .leg::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      bottom: -2px;
+      width: 20px;
+      height: 10px;
+      transform: translateX(-50%);
+      border-radius: 12px 12px 14px 14px;
+      background: linear-gradient(180deg, rgba(18, 37, 45, 0.94), rgba(18, 37, 45, 0.75));
+    }
+
+    .avatar-shell.large .leg {
+      top: 102px;
+      width: 18px;
+      height: 30px;
+    }
+
+    .avatar-shell.gender-f .leg.left { left: 20px; }
+    .avatar-shell.gender-f .leg.right { right: 20px; }
+    .avatar-shell.gender-m .leg.left { left: 17px; }
+    .avatar-shell.gender-m .leg.right { right: 17px; }
+
+    .leg.left { left: 18px; animation: legKickLeft 3.1s ease-in-out infinite; }
+    .leg.right { right: 18px; animation: legKickRight 3.1s ease-in-out infinite; }
+
+    .avatar-floor {
+      position: absolute;
+      left: 50%;
+      bottom: 0;
+      width: 48px;
+      height: 12px;
+      transform: translateX(-50%);
+      border-radius: 50%;
+      background: rgba(18, 37, 45, 0.12);
+      filter: blur(4px);
+      animation: floorBreathe 3.8s ease-in-out infinite;
+    }
+
+    .avatar-shell.large .avatar-floor {
+      width: 58px;
+      height: 14px;
+    }
+
+    .avatar-shell.running .progress-orbit {
+      box-shadow: 0 0 0 0 rgba(31, 125, 93, 0.22);
+      animation: pulse 2.2s infinite;
+    }
+
+    .avatar-shell.running .signal-ring,
+    .avatar-shell.running .signal-ring.outer {
+      animation-duration: 8s;
+    }
+
+    .avatar-shell.running .status-beacon,
+    .avatar-shell.waiting .status-beacon,
+    .avatar-shell.queued .status-beacon,
+    .avatar-shell.blocked .status-beacon,
+    .avatar-shell.canceled .status-beacon {
+      animation: beaconPulse 2s infinite;
+    }
+
+    .avatar-shell.blocked .progress-orbit,
+    .avatar-shell.canceled .progress-orbit {
+      animation: pulseRed 1.5s infinite;
+    }
+
+    .avatar-shell.waiting .mascot,
+    .avatar-shell.queued .mascot {
+      animation-duration: 4.9s;
+    }
+
+    .avatar-shell.blocked .mascot,
+    .avatar-shell.canceled .mascot {
+      animation: tense 1.7s ease-in-out infinite;
+    }
+
+    .avatar-shell.idle .signal-ring,
+    .avatar-shell.offline .signal-ring {
+      animation-duration: 24s;
+      opacity: 0.26;
+    }
+
+    .agent-title {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+
+    .agent-name {
+      margin: 2px 0 4px;
+      font-size: 1.06rem;
+      font-family: var(--body);
+      font-weight: 700;
+    }
+
+    .subline,
+    .task-meta,
+    .event-meta {
+      font-size: 12px;
+      color: rgba(18, 37, 45, 0.68);
+      line-height: 1.55;
+    }
+
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .status::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    .running { color: var(--leaf); background: rgba(31, 125, 93, 0.12); }
+    .waiting, .queued { color: var(--sun); background: rgba(199, 146, 24, 0.12); }
+    .blocked, .canceled { color: var(--rose); background: rgba(196, 95, 85, 0.12); }
+    .completed, .done { color: var(--sky); background: rgba(45, 107, 158, 0.12); }
+    .idle, .offline { color: var(--slate); background: rgba(95, 113, 122, 0.1); }
+
+    .progress {
+      height: 8px;
+      margin: 12px 0 8px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: rgba(18, 37, 45, 0.08);
+    }
+
+    .progress span {
+      display: block;
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, var(--orange), #ebae4b);
+      transition: width .35s ease;
+    }
+
+    .tiny-row {
+      margin-top: 10px;
+    }
+
+    .tiny-pill {
+      padding: 7px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(18, 37, 45, 0.08);
+      background: rgba(18, 37, 45, 0.04);
+      font-size: 12px;
+    }
+
+    .model-switch {
+      position: relative;
+      margin: 0;
+      padding: 0;
+      border: none;
+    }
+
+    .model-switch summary {
+      list-style: none;
+      margin: 0;
+      padding: 7px 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(18, 37, 45, 0.08);
+      background: rgba(18, 37, 45, 0.04);
+      font-size: 12px;
+      color: rgba(18, 37, 45, 0.76);
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      max-width: 188px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .model-switch summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .model-switch summary::after {
+      content: "▾";
+      font-size: 11px;
+      color: rgba(18, 37, 45, 0.5);
+      flex-shrink: 0;
+    }
+
+    .model-switch[open] summary {
+      background: rgba(255,255,255,0.86);
+      box-shadow: 0 8px 20px rgba(18, 37, 45, 0.08);
+    }
+
+    .model-panel {
+      position: absolute;
+      left: 0;
+      top: calc(100% + 8px);
+      z-index: 12;
+      min-width: 220px;
+      display: grid;
+      gap: 6px;
+      padding: 10px;
+      border-radius: 16px;
+      border: 1px solid rgba(18, 37, 45, 0.08);
+      background: rgba(255,255,255,0.94);
+      box-shadow: 0 18px 34px rgba(18, 37, 45, 0.12);
+      backdrop-filter: blur(10px);
+    }
+
+    .model-option {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(18, 37, 45, 0.08);
+      background: rgba(18, 37, 45, 0.03);
+      color: var(--ink);
+      text-align: left;
+      cursor: pointer;
+      transition: transform .15s ease, background .15s ease, border-color .15s ease;
+    }
+
+    .model-option:hover {
+      transform: translateY(-1px);
+      background: rgba(255,255,255,0.86);
+      border-color: rgba(18, 37, 45, 0.16);
+      box-shadow: none;
+    }
+
+    .model-option.active {
+      background: rgba(31, 125, 93, 0.08);
+      border-color: rgba(31, 125, 93, 0.18);
+    }
+
+    .model-option strong,
+    .model-option small {
+      display: block;
+      line-height: 1.35;
+    }
+
+    .model-option strong {
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .model-option small {
+      margin-top: 2px;
+      font-size: 11px;
+      color: rgba(18, 37, 45, 0.54);
+    }
+
+    .mini-form {
+      margin-top: 10px;
+    }
+
+    .mini-form .row {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .event-list {
+      position: relative;
+      gap: 12px;
+      padding: 4px 0 0;
+    }
+
+    .event-list::before {
+      content: "";
+      position: absolute;
+      left: 22px;
+      top: 8px;
+      bottom: 12px;
+      width: 1px;
+      background: linear-gradient(180deg, rgba(18, 37, 45, 0.18), rgba(18, 37, 45, 0.05));
+    }
+
+    .event-card {
+      position: relative;
+      display: grid;
+      grid-template-columns: 46px 1fr;
+      gap: 12px;
+      padding: 0;
+      border: none;
+      background: transparent;
+      box-shadow: none;
+      align-items: start;
+    }
+
+    .event-card::after {
+      display: none;
+    }
+
+    .event-node {
+      position: relative;
+      z-index: 1;
+      width: 46px;
+      height: 46px;
+      border-radius: 18px;
+      display: grid;
+      place-items: center;
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--ink);
+      background: rgba(255,255,255,0.86);
+      border: 1px solid rgba(18, 37, 45, 0.08);
+      box-shadow: 0 10px 24px rgba(18, 37, 45, 0.08);
+      backdrop-filter: blur(6px);
+    }
+
+    .event-node::before {
+      content: "";
+      position: absolute;
+      inset: 8px;
+      border-radius: 12px;
+      background: rgba(255,255,255,0.52);
+    }
+
+    .event-node span {
+      position: relative;
+      z-index: 1;
+    }
+
+    .event-node.running {
+      color: var(--leaf);
+      background: linear-gradient(180deg, rgba(222, 241, 234, 0.98), rgba(231, 245, 239, 0.78));
+    }
+
+    .event-node.waiting,
+    .event-node.queued {
+      color: var(--sun);
+      background: linear-gradient(180deg, rgba(249, 239, 204, 0.98), rgba(252, 244, 225, 0.78));
+    }
+
+    .event-node.idle,
+    .event-node.offline {
+      color: var(--slate);
+      background: linear-gradient(180deg, rgba(234, 238, 241, 0.98), rgba(243, 245, 247, 0.78));
+    }
+
+    .event-node.blocked,
+    .event-node.canceled {
+      color: var(--rose);
+      background: linear-gradient(180deg, rgba(248, 228, 226, 0.98), rgba(252, 239, 237, 0.78));
+    }
+
+    .event-node.completed,
+    .event-node.done {
+      color: var(--sky);
+      background: linear-gradient(180deg, rgba(224, 236, 246, 0.98), rgba(238, 245, 251, 0.78));
+    }
+
+    .event-node-dot {
+      position: absolute;
+      right: -2px;
+      top: -2px;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: currentColor;
+      border: 2px solid rgba(255,255,255,0.82);
+      box-shadow: 0 0 0 0 rgba(18, 37, 45, 0.14);
+      animation: beaconPulse 2.4s infinite;
+    }
+
+    .event-body {
+      position: relative;
+      padding: 12px 14px 13px;
+      border-radius: 18px;
+      border: 1px solid rgba(18, 37, 45, 0.08);
+      background: rgba(255,255,255,0.58);
+      box-shadow: 0 10px 28px rgba(18, 37, 45, 0.06);
+      overflow: hidden;
+    }
+
+    .event-body::before {
+      content: "";
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: 4px;
+      border-radius: 18px 0 0 18px;
+      background: rgba(18, 37, 45, 0.08);
+    }
+
+    .event-card.running .event-body::before { background: rgba(31, 125, 93, 0.7); }
+    .event-card.waiting .event-body::before,
+    .event-card.queued .event-body::before { background: rgba(199, 146, 24, 0.72); }
+    .event-card.idle .event-body::before,
+    .event-card.offline .event-body::before { background: rgba(95, 113, 122, 0.62); }
+    .event-card.blocked .event-body::before,
+    .event-card.canceled .event-body::before { background: rgba(196, 95, 85, 0.72); }
+    .event-card.completed .event-body::before,
+    .event-card.done .event-body::before { background: rgba(45, 107, 158, 0.72); }
+
+    .event-card.latest .event-body {
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.78), rgba(255,255,255,0.54)),
+        radial-gradient(circle at 100% 0, rgba(211, 106, 46, 0.08), transparent 34%);
+    }
+
+    .event-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 7px;
+    }
+
+    .event-time {
+      font-size: 11px;
+      color: rgba(18, 37, 45, 0.56);
+      font-family: var(--mono);
+      letter-spacing: 0.04em;
+    }
+
+    .event-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 5px 9px;
+      border-radius: 999px;
+      font-size: 10px;
+      font-weight: 700;
+      font-family: var(--mono);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .event-badge::before {
+      content: "";
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    .event-badge.running { color: var(--leaf); background: rgba(31, 125, 93, 0.1); }
+    .event-badge.waiting,
+    .event-badge.queued { color: var(--sun); background: rgba(199, 146, 24, 0.12); }
+    .event-badge.idle,
+    .event-badge.offline { color: var(--slate); background: rgba(95, 113, 122, 0.1); }
+    .event-badge.blocked,
+    .event-badge.canceled { color: var(--rose); background: rgba(196, 95, 85, 0.12); }
+    .event-badge.completed,
+    .event-badge.done { color: var(--sky); background: rgba(45, 107, 158, 0.12); }
+
+    .event-title {
+      font-size: 1rem;
+      font-weight: 700;
+      line-height: 1.2;
+    }
+
+    .event-note {
+      margin-top: 4px;
+      font-size: 12px;
+      color: rgba(18, 37, 45, 0.7);
+      line-height: 1.55;
+    }
+
+    .event-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .event-tag {
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: rgba(18, 37, 45, 0.04);
+      border: 1px solid rgba(18, 37, 45, 0.07);
+      font-size: 11px;
+      color: rgba(18, 37, 45, 0.65);
+    }
+
+    .status-list {
+      margin-top: 10px;
+    }
+
+    .status-row {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    .status-track {
+      height: 8px;
+      border-radius: 999px;
+      overflow: hidden;
+      background: rgba(18, 37, 45, 0.08);
+    }
+
+    .status-track span {
+      display: block;
+      height: 100%;
+      width: var(--value, 0%);
+      border-radius: inherit;
+      background: currentColor;
+      opacity: 0.82;
+    }
+
+    .status-count {
+      font-family: var(--mono);
+      font-size: 12px;
+    }
+
+    .empty {
+      padding: 24px;
+      text-align: center;
+      border-radius: 18px;
+      background: rgba(18, 37, 45, 0.045);
+      color: rgba(18, 37, 45, 0.65);
+    }
+
+    @keyframes rise {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes drift {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-5px); }
+    }
+
+    @keyframes tense {
+      0%, 100% { transform: translateY(0) rotate(0deg); }
+      25% { transform: translateY(-2px) rotate(-2deg); }
+      75% { transform: translateY(-1px) rotate(2deg); }
+    }
+
+    @keyframes armFloatLeft {
+      0%, 100% { transform: rotate(16deg); }
+      50% { transform: rotate(-8deg); }
+    }
+
+    @keyframes armFloatRight {
+      0%, 100% { transform: rotate(-16deg); }
+      50% { transform: rotate(8deg); }
+    }
+
+    @keyframes legKickLeft {
+      0%, 100% { transform: rotate(8deg); }
+      50% { transform: rotate(-6deg); }
+    }
+
+    @keyframes legKickRight {
+      0%, 100% { transform: rotate(-8deg); }
+      50% { transform: rotate(6deg); }
+    }
+
+    @keyframes floorBreathe {
+      0%, 100% { transform: translateX(-50%) scaleX(1); opacity: .14; }
+      50% { transform: translateX(-50%) scaleX(.86); opacity: .08; }
+    }
+
+    @keyframes ringSpin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    @keyframes blink {
+      0%, 46%, 52%, 100% { transform: scaleY(1); }
+      48%, 50% { transform: scaleY(0.18); }
+    }
+
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(31, 125, 93, 0.22); }
+      70% { box-shadow: 0 0 0 12px rgba(31, 125, 93, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(31, 125, 93, 0); }
+    }
+
+    @keyframes pulseRed {
+      0% { box-shadow: 0 0 0 0 rgba(196, 95, 85, 0.2); }
+      70% { box-shadow: 0 0 0 12px rgba(196, 95, 85, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(196, 95, 85, 0); }
+    }
+
+    @keyframes beaconPulse {
+      0% { box-shadow: 0 0 0 0 rgba(18, 37, 45, 0.16); }
+      70% { box-shadow: 0 0 0 10px rgba(18, 37, 45, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(18, 37, 45, 0); }
+    }
+
+    @keyframes heroLoop {
+      0% { transform: translateX(0); }
+      100% { transform: translateX(-50%); }
+    }
+
+    @keyframes heroShine {
+      0%, 14% { transform: translateX(-140%); }
+      42%, 100% { transform: translateX(140%); }
+    }
+
+    @keyframes signalBeat {
+      0%, 100% { height: 8px; opacity: 0.52; }
+      50% { height: 100%; opacity: 1; }
+    }
+
+    @media (max-width: 1180px) {
+      .hero,
+      .main-layout {
+        grid-template-columns: 1fr;
+      }
+
+      .hero-presence {
+        grid-template-columns: 1fr;
+      }
+
+      .hero-signal-row {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 760px) {
+      .shell { padding: 14px 12px 26px; }
+      .hero { padding: 18px; }
+      .agent-grid,
+      .presence-cluster,
+      .presence-pulse,
+      .presence-kpis {
+        grid-template-columns: 1fr;
+      }
+      .hero-topline {
+        align-items: flex-start;
+      }
+      .hero-title {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 2px;
+        white-space: normal;
+      }
+      .hero-title span:last-child {
+        font-size: 0.92em;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <div id="notice" class="notice"></div>
+
+    <section class="panel hero">
+      <div class="hero-copy">
+        <div class="hero-topline">
+          <div class="eyebrow">OPC Agent Theater</div>
+          <div class="hero-live">STATUS LOOP</div>
+        </div>
+        <div class="hero-title-wrap">
+          <div class="hero-title-ribbon" aria-hidden="true">
+            <div class="hero-title-track">
+              <span>OPC 作战中心</span><em></em>
+              <span>MAIN AGENT LIVE</span><em></em>
+              <span>SUB-AGENT ORBIT</span><em></em>
+              <span>OPC 作战中心</span><em></em>
+              <span>MAIN AGENT LIVE</span><em></em>
+              <span>SUB-AGENT ORBIT</span><em></em>
+            </div>
+          </div>
+          <h1 class="hero-title"><span>OPC</span><span>作战中心</span></h1>
+        </div>
+        <p class="lead">这版看板只保留主 agent 和 sub-agent 的实时状态，用更干净的人物形象、节奏化的状态环和简化信息密度来表达当前运行态，不再把派发、切模型这些操作混进主界面。</p>
+        <div class="hero-signal-row" aria-hidden="true">
+          <div class="hero-signal" style="--delay:0;">
+            <strong>主控在线</strong>
+            <div class="signal-wave">
+              <span style="--i:0;"></span>
+              <span style="--i:1;"></span>
+              <span style="--i:2;"></span>
+              <span style="--i:3;"></span>
+              <span style="--i:4;"></span>
+            </div>
+            <p>主 agent 持续收敛全局状态</p>
+          </div>
+          <div class="hero-signal" style="--delay:1.2;">
+            <strong>状态回波</strong>
+            <div class="signal-wave">
+              <span style="--i:1;"></span>
+              <span style="--i:3;"></span>
+              <span style="--i:0;"></span>
+              <span style="--i:4;"></span>
+              <span style="--i:2;"></span>
+            </div>
+            <p>角色动态按节奏循环刷新</p>
+          </div>
+          <div class="hero-signal" style="--delay:2.4;">
+            <strong>模型切换</strong>
+            <div class="signal-wave">
+              <span style="--i:2;"></span>
+              <span style="--i:4;"></span>
+              <span style="--i:1;"></span>
+              <span style="--i:3;"></span>
+              <span style="--i:0;"></span>
+            </div>
+            <p>点击角色卡即可切换大模型</p>
+          </div>
+        </div>
+        <div class="hero-chips">
+          <div class="chip" id="generatedAt">正在加载...</div>
+          <div class="chip" id="refreshAt">自动刷新</div>
+        </div>
+        <div class="metric-strip" id="stats"></div>
+      </div>
+      <div class="hero-presence" id="mainAgentHero"></div>
+    </section>
+
+    <section class="main-layout">
+      <div>
+        <article class="panel section">
+          <div class="section-head">
+            <h2>Agent 阵列</h2>
+            <div class="meta">只读状态卡片</div>
+          </div>
+          <div class="agent-grid" id="subAgents"></div>
+        </article>
+      </div>
+
+      <div>
+        <article class="panel section">
+          <div class="section-head">
+            <h2>状态概览</h2>
+            <div class="meta">运行 / 等待 / 空闲 / 离线</div>
+          </div>
+          <div class="status-board" id="statusOverview"></div>
+        </article>
+
+        <article class="panel section" style="margin-top:18px;">
+          <div class="section-head">
+            <h2>活动流</h2>
+            <div class="meta">最近状态变化</div>
+          </div>
+          <div class="event-list" id="events"></div>
+        </article>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const STATE_CLASSES = new Set(["idle", "running", "waiting", "blocked", "completed", "offline", "queued", "done", "canceled"]);
+    let refreshTimer = null;
+
+    const noticeEl = document.getElementById("notice");
+    const AVATAR_THEMES = {
+      default: {
+        accent: "#d36a2e",
+        accentSoft: "#efc791",
+        accentDeep: "#895131",
+        hair: "#233843",
+        skin: "#ffd8b6"
+      },
+      ceo: {
+        accent: "#cf6c2f",
+        accentSoft: "#f0cb97",
+        accentDeep: "#8a4c2a",
+        hair: "#233642",
+        skin: "#ffd9bc"
+      },
+      coo: {
+        accent: "#2b7a68",
+        accentSoft: "#9ed8c1",
+        accentDeep: "#1f5148",
+        hair: "#263840",
+        skin: "#f8d7b6"
+      },
+      strategist: {
+        accent: "#8a79c4",
+        accentSoft: "#ded6f6",
+        accentDeep: "#5f4f9d",
+        hair: "#2b3149",
+        skin: "#f8d8ba"
+      },
+      product: {
+        accent: "#d38d95",
+        accentSoft: "#f6d4d8",
+        accentDeep: "#9f5f6c",
+        hair: "#44323b",
+        skin: "#ffd8bc"
+      },
+      marketing: {
+        accent: "#d18a1f",
+        accentSoft: "#f0d08c",
+        accentDeep: "#88591f",
+        hair: "#3c332c",
+        skin: "#f6d2b0"
+      },
+      tech: {
+        accent: "#2f6ea1",
+        accentSoft: "#a7d0ef",
+        accentDeep: "#20486d",
+        hair: "#203447",
+        skin: "#f6d1b0"
+      },
+      finance: {
+        accent: "#83b59e",
+        accentSoft: "#def0e6",
+        accentDeep: "#5b8f79",
+        hair: "#31423f",
+        skin: "#f7d5b4"
+      },
+      brand: {
+        accent: "#cf7786",
+        accentSoft: "#f4cad3",
+        accentDeep: "#95495d",
+        hair: "#433039",
+        skin: "#ffd6bb"
+      },
+      legal: {
+        accent: "#5d667e",
+        accentSoft: "#cbd3e3",
+        accentDeep: "#40485e",
+        hair: "#2d303d",
+        skin: "#f7d3b2"
+      }
+    };
+    const AVATAR_PERSONAS = {
+      default: { gender: "n", hair: "crop", outfit: "tailored", accessory: "brooch" },
+      ceo: { gender: "n", hair: "wave", outfit: "tailored", accessory: "brooch" },
+      coo: { gender: "m", hair: "slick", outfit: "tailored", accessory: "tie" },
+      strategist: { gender: "f", hair: "bob", outfit: "tailored", accessory: "glasses" },
+      product: { gender: "f", hair: "bun", outfit: "soft", accessory: "earring" },
+      marketing: { gender: "m", hair: "wave", outfit: "soft", accessory: "scarf" },
+      tech: { gender: "m", hair: "crop", outfit: "tech", accessory: "glasses" },
+      finance: { gender: "f", hair: "bun", outfit: "tailored", accessory: "brooch" },
+      brand: { gender: "f", hair: "wave", outfit: "soft", accessory: "earring" },
+      legal: { gender: "m", hair: "slick", outfit: "tailored", accessory: "tie" }
+    };
+    const MODEL_PRESETS = [
+      {
+        id: "platform_default",
+        label: "宿主默认模型",
+        note: "跟随当前平台宿主模型",
+        payload: { source: "platform_default" }
+      },
+      {
+        id: "default",
+        label: "全局默认模型",
+        note: "继承看板默认路由",
+        payload: { source: "default" }
+      },
+      {
+        id: "openai_gpt41",
+        label: "OpenAI · GPT-4.1",
+        note: "适合稳态主控与综合任务",
+        payload: { source: "custom_api", provider: "openai", model: "gpt-4.1" }
+      },
+      {
+        id: "anthropic_sonnet",
+        label: "Anthropic · Claude Sonnet",
+        note: "适合推理与写作型角色",
+        payload: { source: "custom_api", provider: "anthropic", model: "claude-sonnet" }
+      },
+      {
+        id: "deepseek_chat",
+        label: "DeepSeek · Chat",
+        note: "适合成本敏感和快速响应",
+        payload: { source: "custom_api", provider: "deepseek", model: "deepseek-chat" }
+      }
+    ];
+    const STATUS_LABELS = {
+      running: "执行中",
+      waiting: "等待中",
+      queued: "待处理",
+      idle: "空闲",
+      blocked: "阻塞",
+      completed: "完成",
+      done: "完成",
+      canceled: "取消",
+      offline: "离线"
+    };
+
+    const esc = (value) => String(value ?? "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;");
+
+    function formatTime(value) {
+      if (!value) return "未更新";
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return value;
+      return `${date.toLocaleDateString("zh-CN")} ${date.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`;
+    }
+
+    function cls(status) {
+      return STATE_CLASSES.has(status) ? status : "idle";
+    }
+
+    function setNotice(text, kind = "") {
+      noticeEl.className = `notice ${kind}`.trim();
+      noticeEl.textContent = text || "";
+      noticeEl.style.display = text ? "block" : "none";
+    }
+
+    async function apiPost(url, payload) {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const data = await response.json();
+      if (!response.ok || data.success === false) {
+        throw new Error(data.error || "请求失败");
+      }
+      return data;
+    }
+
+    function avatarTheme(agentId) {
+      return AVATAR_THEMES[agentId] || AVATAR_THEMES.default;
+    }
+
+    function avatarPersona(agentId) {
+      return AVATAR_PERSONAS[agentId] || AVATAR_PERSONAS.default;
+    }
+
+    function avatarBadge(agent) {
+      if (agent.is_main_agent) return "主";
+      return String(agent.role || agent.name || agent.agent_id || "A").trim().slice(0, 1);
+    }
+
+    function avatarStyle(agent, progress) {
+      const theme = avatarTheme(agent.agent_id);
+      return [
+        `--progress-value:${progress}%`,
+        `--accent:${theme.accent}`,
+        `--accent-soft:${theme.accentSoft}`,
+        `--accent-deep:${theme.accentDeep}`,
+        `--hair:${theme.hair}`,
+        `--skin:${theme.skin}`
+      ].join(";");
+    }
+
+    function avatarClasses(agent, large = false) {
+      const persona = avatarPersona(agent.agent_id);
+      return [
+        "avatar-shell",
+        cls(agent.status),
+        large ? "large" : "",
+        `gender-${persona.gender}`,
+        `hair-${persona.hair}`,
+        `outfit-${persona.outfit}`,
+        `accessory-${persona.accessory}`
+      ].filter(Boolean).join(" ");
+    }
+
+    function shortAgentName(agent) {
+      const label = String(agent.role || agent.name || agent.agent_id || "AG").trim();
+      if (!label) return "AG";
+      if (/^[\x00-\x7F]+$/.test(label)) {
+        return label.toUpperCase().replace(/\s+/g, "").slice(0, 3);
+      }
+      return Array.from(label).slice(0, 2).join("");
+    }
+
+    function formatTimeShort(value) {
+      if (!value) return "未更新";
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return value;
+      return date.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
+    }
+
+    function compactModelLabel(display) {
+      const text = String(display || "宿主默认模型");
+      if (text === "宿主默认模型") return "宿主默认";
+      if (text.includes(" · ")) return text.replace(" · ", " / ");
+      return text.length > 16 ? `${text.slice(0, 15)}…` : text;
+    }
+
+    function presetIsActive(agent, preset) {
+      const config = agent.model_config || {};
+      if ((config.source || "default") !== preset.payload.source) return false;
+      if (preset.payload.source !== "custom_api") return true;
+      return (config.provider || "") === (preset.payload.provider || "") &&
+        (config.model || "") === (preset.payload.model || "");
+    }
+
+    function modelSwitcherMarkup(agent) {
+      return `
+        <details class="model-switch">
+          <summary title="点击切换大模型">模型 ${esc(compactModelLabel(agent.effective_model?.display))}</summary>
+          <div class="model-panel">
+            ${MODEL_PRESETS.map((preset) => `
+              <button
+                type="button"
+                class="model-option ${presetIsActive(agent, preset) ? "active" : ""}"
+                data-agent-id="${esc(agent.agent_id)}"
+                data-preset-id="${preset.id}"
+              >
+                <strong>${esc(preset.label)}</strong>
+                <small>${esc(preset.note)}</small>
+              </button>
+            `).join("")}
+          </div>
+        </details>
+      `;
+    }
+
+    function eventOriginLabel(origin) {
+      if (origin === "dispatch") return "主控派发";
+      if (origin === "task_flow") return "流程推进";
+      if (origin === "summary") return "主控汇总";
+      if (origin === "manual") return "手动更新";
+      return "状态更新";
+    }
+
+    function statusToneCount(summary, status) {
+      return Number(summary?.state_breakdown?.agents?.[status] || 0);
+    }
+
+    function statusItems(summary) {
+      return ["running", "waiting", "idle", "offline"].map((status) => ({
+        status,
+        label: STATUS_LABELS[status] || status,
+        count: statusToneCount(summary, status)
+      }));
+    }
+
+    function avatarMarkup(agent, large = false) {
+      const progress = Math.max(0, Math.min(100, agent.progress || 0));
+      const badge = avatarBadge(agent);
+      return `
+        <div class="${avatarClasses(agent, large)}" style="${avatarStyle(agent, progress)};">
+          <div class="progress-orbit"></div>
+          <div class="signal-ring"></div>
+          <div class="signal-ring outer"></div>
+          <div class="status-beacon"></div>
+          <div class="mascot">
+            ${agent.is_main_agent ? `<div class="crown"></div>` : ""}
+            <div class="arm left"></div>
+            <div class="arm right"></div>
+            <div class="body-core">
+              <div class="collar"></div>
+              <div class="neck-accent"></div>
+              <div class="badge-mark">${esc(badge)}</div>
+            </div>
+            <div class="leg left"></div>
+            <div class="leg right"></div>
+            <div class="head-shell">
+              <div class="hair hair-back"></div>
+              <div class="hair hair-front"></div>
+              <div class="hair hair-side left"></div>
+              <div class="hair hair-side right"></div>
+              <div class="bun"></div>
+              <span class="ear left"></span>
+              <span class="ear right"></span>
+              <span class="earring left"></span>
+              <span class="earring right"></span>
+              <div class="face">
+                <span class="brow left"></span>
+                <span class="brow right"></span>
+                <span class="blush left"></span>
+                <span class="blush right"></span>
+                <span class="eye left"></span>
+                <span class="eye right"></span>
+                <span class="glasses"></span>
+                <span class="mouth"></span>
+              </div>
+            </div>
+          </div>
+          <div class="avatar-floor"></div>
+        </div>
+      `;
+    }
+
+    function renderStats(summary) {
+      const metrics = summary.metrics || {};
+      const states = summary.state_breakdown?.agents || {};
+      const items = [
+        ["运行中", states.running ?? 0],
+        ["等待中", states.waiting ?? 0],
+        ["空闲中", states.idle ?? 0],
+        ["Sub-Agent", metrics.sub_agents_total ?? 0],
+      ];
+      document.getElementById("stats").innerHTML = items.map(([label, value]) => `
+        <div class="metric-pill">
+          <div class="metric-label">${label}</div>
+          <span class="metric-value">${value}</span>
+        </div>
+      `).join("");
+    }
+
+    function renderMainAgent(summary) {
+      const agent = summary.main_agent;
+      const pulses = statusItems(summary);
+      const clusterAgents = (summary.agents || []).filter((item) => !item.is_main_agent).slice(0, 8);
+      const root = document.getElementById("mainAgentHero");
+      if (!agent) {
+        root.innerHTML = `<div class="empty">当前没有主 agent。</div>`;
+        return;
+      }
+
+      root.innerHTML = `
+        <div class="presence-stage">
+          ${avatarMarkup(agent, true)}
+          <div class="presence-cluster">
+            ${clusterAgents.map((item) => `
+              <div class="presence-chip ${cls(item.status)}">${esc(shortAgentName(item))}</div>
+            `).join("")}
+          </div>
+        </div>
+        <div class="presence-copy">
+          <div>
+            <div class="agent-title">
+              <div>
+                <div class="meta">Main Agent · ${esc(agent.agent_id)}</div>
+                <h3 class="agent-name">${esc(agent.name)}</h3>
+              </div>
+              <div class="status ${cls(agent.status)}">${esc(agent.status_label || agent.status)}</div>
+            </div>
+            <div class="subline">${esc(agent.last_message || "暂无动态")}</div>
+          </div>
+          <div class="presence-pulse">
+            ${pulses.slice(0, 3).map((item) => `
+              <div class="pulse-pill ${cls(item.status)}">
+                <span>${esc(item.label)}</span>
+                <strong>${item.count}</strong>
+              </div>
+            `).join("")}
+          </div>
+          <div class="presence-kpis">
+            <div class="presence-kpi">
+              <span>主控任务</span>
+              <strong>${esc(agent.current_task_title || "主控待命")}</strong>
+            </div>
+            <div class="presence-kpi">
+              <span>最后更新</span>
+              <strong>${esc(formatTimeShort(agent.updated_at))}</strong>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderSubAgents(summary) {
+      const agents = (summary.agents || []).filter((agent) => !agent.is_main_agent);
+      const root = document.getElementById("subAgents");
+
+      if (!agents.length) {
+        root.innerHTML = `<div class="empty">还没有 sub-agent 数据。</div>`;
+        return;
+      }
+
+      root.innerHTML = agents.map((agent) => `
+        <article class="agent-card">
+          <div class="agent-head">
+            ${avatarMarkup(agent)}
+            <div style="min-width:0; width:100%;">
+              <div class="agent-title">
+                <div>
+                  <div class="meta">${esc(agent.parent_agent_id || "-")} → ${esc(agent.agent_id)}</div>
+                  <h3 class="agent-name">${esc(agent.name)}</h3>
+                </div>
+                <div class="status ${cls(agent.status)}">${esc(agent.status_label || agent.status)}</div>
+              </div>
+              <div class="subline">${esc(agent.last_message || "暂无动态")}</div>
+              <div class="progress"><span style="width:${Math.max(0, Math.min(100, agent.progress || 0))}%"></span></div>
+            </div>
+          </div>
+          <div class="sub-meta">
+            <div class="tiny-pill">角色 ${esc(agent.role || "-")}</div>
+            ${modelSwitcherMarkup(agent)}
+            <div class="tiny-pill">更新 ${esc(formatTimeShort(agent.updated_at))}</div>
+          </div>
+        </article>
+      `).join("");
+    }
+
+    function renderStatusOverview(summary) {
+      const root = document.getElementById("statusOverview");
+      const total = Math.max(1, Number(summary.metrics?.agents_total || 0));
+      const items = statusItems(summary);
+      root.innerHTML = `
+        <article class="status-card">
+          <div class="meta">Agent States</div>
+          <div class="status-list">
+            ${items.map((item) => `
+              <div class="status-row ${cls(item.status)}" style="--value:${Math.round((item.count / total) * 100)}%;">
+                <div class="status-dot"></div>
+                <div class="status-track"><span></span></div>
+                <div class="status-count">${esc(item.label)} ${item.count}</div>
+              </div>
+            `).join("")}
+          </div>
+        </article>
+        <article class="status-card">
+          <div class="meta">Board Signal</div>
+          <div class="tiny-row">
+            <div class="tiny-pill">主 agent ${esc(summary.main_agent?.status_label || "未加载")}</div>
+            <div class="tiny-pill">活跃 ${summary.metrics?.agents_active ?? 0}</div>
+            <div class="tiny-pill">总览 ${summary.metrics?.agents_total ?? 0}</div>
+          </div>
+          <div class="subline" style="margin-top:12px;">当前看板只读展示运行状态。复杂操作入口已从主界面移除，避免信息噪音。</div>
+        </article>
+      `;
+    }
+
+    function renderEvents(events, agents = []) {
+      const root = document.getElementById("events");
+      const agentMap = Object.fromEntries((agents || []).map((agent) => [agent.agent_id, agent]));
+      const filtered = (events || []).filter((event) => event.entity_type === "agent" && event.operation === "status");
+
+      if (!filtered.length) {
+        root.innerHTML = `<div class="empty">最近还没有新的状态变化。</div>`;
+        return;
+      }
+
+      root.innerHTML = filtered.slice(0, 8).map((event) => {
+        const agent = agentMap[event.entity_id] || {};
+        const status = event.details?.status;
+        const tone = cls(status);
+        const focus = agent.current_task_title || agent.current_task_id || "待命";
+        const role = agent.role || event.entity_id || "-";
+        const origin = eventOriginLabel(event.details?.origin);
+        return `
+        <article class="event-card ${tone} ${filtered[0] === event ? "latest" : ""}">
+          <div class="event-node ${tone}">
+            <span>${esc(shortAgentName(agent))}</span>
+            <i class="event-node-dot"></i>
+          </div>
+          <div class="event-body">
+            <div class="event-top">
+              <div class="event-time">${esc(formatTime(event.timestamp))}</div>
+              <div class="event-badge ${tone}">${esc(STATUS_LABELS[status] || status || "更新")}</div>
+            </div>
+            <div class="event-title">${esc(agent.name || event.entity_id || "-")}</div>
+            <div class="event-note">${esc(role)} · ${esc(origin)}</div>
+            <div class="event-tags">
+              <div class="event-tag">焦点 ${esc(focus)}</div>
+              <div class="event-tag">时间 ${esc(formatTimeShort(event.timestamp))}</div>
+            </div>
+          </div>
+        </article>
+      `;
+      }).join("");
+    }
+
+    function render(summary) {
+      renderStats(summary);
+      renderMainAgent(summary);
+      renderSubAgents(summary);
+      renderStatusOverview(summary);
+      renderEvents(summary.events || [], summary.agents || []);
+      document.getElementById("generatedAt").textContent = `最近刷新 ${formatTime(summary.generated_at)}`;
+      document.getElementById("refreshAt").textContent = `自动刷新 ${summary.refresh_seconds || 8}s`;
+    }
+
+    async function applyModelPreset(agentId, presetId, detailsEl) {
+      const preset = MODEL_PRESETS.find((item) => item.id === presetId);
+      if (!preset) return;
+      try {
+        await apiPost(`/api/agents/${agentId}/model`, preset.payload);
+        if (detailsEl) detailsEl.open = false;
+        setNotice(`${agentId} 已切换到 ${preset.label}`, "ok");
+        await refresh();
+      } catch (error) {
+        setNotice(error.message || "模型切换失败", "error");
+      }
+    }
+
+    async function refresh() {
+      try {
+        const response = await fetch("/api/summary", { cache: "no-store" });
+        const summary = await response.json();
+        render(summary);
+        clearTimeout(refreshTimer);
+        refreshTimer = setTimeout(refresh, (summary.refresh_seconds || 8) * 1000);
+      } catch (error) {
+        setNotice(error.message || "看板数据读取失败", "error");
+        clearTimeout(refreshTimer);
+        refreshTimer = setTimeout(refresh, 10000);
+      }
+    }
+
+    document.addEventListener("click", (event) => {
+      const option = event.target.closest(".model-option");
+      if (option) {
+        event.preventDefault();
+        applyModelPreset(
+          option.dataset.agentId,
+          option.dataset.presetId,
+          option.closest(".model-switch")
+        );
+        return;
+      }
+
+      if (event.target.closest(".model-switch")) return;
+      document.querySelectorAll(".model-switch[open]").forEach((item) => {
+        item.open = false;
+      });
+    });
+
+    refresh();
+  </script>
+</body>
+</html>

@@ -96,6 +96,12 @@ def create_task(title: str, ceo_input: str) -> str:
     storage.save(task_id, task)
     log_operation("create", task_id, "task", {"title": title})
 
+    try:
+        from agent_ops import get_main_agent_id, sync_agent_from_task
+        sync_agent_from_task(task, agent_id=get_main_agent_id(), message=f"收到新任务：{title}")
+    except Exception:
+        pass
+
     emit_json(True, task_id=task_id, message=f"任务 {task_id} 创建成功")
     return task_id
 
@@ -140,6 +146,18 @@ def assess_task(task_id: str, level: str, reason: str):
 
         storage.save(task_id, task)
     log_operation("assess", task_id, "task", {"level": level, "reason": reason})
+
+    try:
+        from agent_ops import sync_agent_from_task
+        sync_agent_from_task(task, actor="COO魏明远", message=f"完成任务定级：{reason}")
+    except Exception:
+        pass
+
+    try:
+        from agent_ops import get_main_agent_id, sync_agent_from_task
+        sync_agent_from_task(task, agent_id=get_main_agent_id(), message=f"主 agent 完成任务定级：{reason}")
+    except Exception:
+        pass
 
     emit_json(True, task_id=task_id, level=level, message=f"任务 {task_id} 定级为 {level}")
 
@@ -196,6 +214,12 @@ def transition_state(task_id: str, to_state: str, actor: str):
         storage.save(task_id, task)
     log_operation("transition", task_id, "task", {"from": from_state, "to": to_state, "actor": actor})
 
+    try:
+        from agent_ops import sync_agent_from_task
+        sync_agent_from_task(task, actor=actor, message=f"状态流转至 {to_state}")
+    except Exception:
+        pass
+
     # 如果开启了 auto_sync_memory 且任务完成，同步到 MEMORY.md
     if to_state == TaskState.COMPLETED.value and config.get("features.auto_sync_memory", False):
         try:
@@ -207,7 +231,7 @@ def transition_state(task_id: str, to_state: str, actor: str):
     emit_json(True, task_id=task_id, from_state=from_state, to_state=to_state, message=f"任务 {task_id} 状态已更新")
 
 
-def report_progress(task_id: str, message: str, progress: int):
+def report_progress(task_id: str, message: str, progress: int, agent_id: str = None):
     """上报进度"""
     if not 0 <= progress <= 100:
         emit_error("进度百分比必须在 0-100 之间")
@@ -239,6 +263,13 @@ def report_progress(task_id: str, message: str, progress: int):
 
         storage.save(task_id, task)
     log_operation("progress", task_id, "task", {"message": message, "progress": progress})
+
+    if agent_id:
+        try:
+            from agent_ops import sync_agent_from_task
+            sync_agent_from_task(task, agent_id=agent_id, message=message)
+        except Exception:
+            pass
 
     # 生成进度条
     bar_length = 10
@@ -349,6 +380,7 @@ def main():
     progress_parser.add_argument("--task-id", required=True, help="任务ID")
     progress_parser.add_argument("--message", required=True, help="进度消息")
     progress_parser.add_argument("--progress", type=int, required=True, help="进度百分比")
+    progress_parser.add_argument("--agent-id", help="上报进度的 agent ID（可选，用于同步 agent 看板状态）")
 
     # status
     status_parser = subparsers.add_parser("status", help="查询状态")
@@ -367,7 +399,7 @@ def main():
     elif args.command == "transition":
         transition_state(args.task_id, args.to, args.actor)
     elif args.command == "progress":
-        report_progress(args.task_id, args.message, args.progress)
+        report_progress(args.task_id, args.message, args.progress, args.agent_id)
     elif args.command == "status":
         get_status(args.task_id)
     elif args.command == "check-sla":

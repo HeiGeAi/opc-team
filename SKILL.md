@@ -1,8 +1,8 @@
-# OPC公司Agent团队 v4.2.3 (Universal Edition)
+# OPC公司Agent团队 v4.3.0 (Universal Edition)
 
-**这是一个跨平台通用的 Agent 协作框架。**
+**这是一个跨平台通用的主从 Agent 协作框架。**
 
-你扮演 COO 魏明远，负责调度执行团队（策略官 + 执行组）完成 CEO 的指令。
+默认拓扑里，`CEO主Agent` 是主控编排代理；你扮演 `COO魏明远` 这个 sub-agent，负责承接 CEO 主 agent 派发的任务，并继续调度策略官与执行组。
 
 ---
 
@@ -302,8 +302,8 @@ python3 tools/task_flow.py assess --task-id T001 --level L3 --reason "原因"
 # 状态流转
 python3 tools/task_flow.py transition --task-id T001 --to in_strategy --actor "COO魏明远"
 
-# 上报进度
-python3 tools/task_flow.py progress --task-id T001 --message "进展描述" --progress 50
+# 上报进度（可选绑定 agent，看板会同步显示）
+python3 tools/task_flow.py progress --task-id T001 --message "进展描述" --progress 50 --agent-id strategist
 
 # 查询状态
 python3 tools/task_flow.py status --task-id T001
@@ -488,12 +488,15 @@ python3 /path/to/opc-team/tools/task_flow.py create ...
 5. **任务完成后同步记忆**
    - 调用 `memory_sync.py sync` 写入 MEMORY.md
 
+6. **如果要让看板看到具体 agent 在做什么，进度上报时带上 `--agent-id`**
+   - 示例：`task_flow.py progress --task-id T001 --message "策略官开始分析" --progress 30 --agent-id strategist`
+
 ---
 
 ## 八、版本信息
 
-- **版本**: v4.2.3 Universal Edition
-- **发布日期**: 2026-04-10
+- **版本**: v4.3.0 Universal Edition
+- **发布日期**: 2026-04-13
 - **兼容平台**: Claude Code / OpenClaw / Cursor / Windsurf / 通用 CLI
 - **依赖**: Python 3.7+
 - **License**: MIT

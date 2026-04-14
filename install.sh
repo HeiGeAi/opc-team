@@ -60,7 +60,11 @@ sync_project_bundle() {
     local bundle_platform="$2"
 
     mkdir -p "$bundle_dir/tools"
+    mkdir -p "$bundle_dir/dashboard"
+    mkdir -p "$bundle_dir/adapters"
     cp "$SCRIPT_DIR"/tools/*.py "$bundle_dir/tools/"
+    cp "$SCRIPT_DIR"/dashboard/* "$bundle_dir/dashboard/"
+    cp "$SCRIPT_DIR"/adapters/*.json "$bundle_dir/adapters/"
     cp "$SCRIPT_DIR/config.json" "$bundle_dir/"
     cp "$SCRIPT_DIR/README.md" "$bundle_dir/"
     cp "$SCRIPT_DIR/install.sh" "$bundle_dir/"
@@ -69,6 +73,7 @@ sync_project_bundle() {
         cd "$bundle_dir"
         python3 tools/config.py init --platform "$bundle_platform" >/dev/null
         python3 tools/memory_sync.py init >/dev/null
+        python3 tools/agent_ops.py init >/dev/null
     )
 }
 
@@ -80,6 +85,7 @@ init_bundle_config() {
         cd "$bundle_dir"
         python3 tools/config.py init --platform "$bundle_platform" >/dev/null
         python3 tools/memory_sync.py init >/dev/null
+        python3 tools/agent_ops.py init >/dev/null
     )
 }
 
@@ -177,7 +183,10 @@ init_data_dirs() {
         "$SCRIPT_DIR/data/decisions" \
         "$SCRIPT_DIR/data/risks" \
         "$SCRIPT_DIR/data/memory" \
-        "$SCRIPT_DIR/data/logs"
+        "$SCRIPT_DIR/data/logs" \
+        "$SCRIPT_DIR/data/agents" \
+        "$SCRIPT_DIR/data/dashboard" \
+        "$SCRIPT_DIR/data/assignments"
 
     echo_success "数据目录创建完成"
 }
@@ -189,6 +198,14 @@ init_memory() {
     run_repo_tool memory_sync init
 
     echo_success "记忆系统初始化完成"
+}
+
+init_agents() {
+    echo_info "初始化 agent 注册表..."
+
+    run_repo_tool agent_ops init >/dev/null
+
+    echo_success "agent 注册表初始化完成"
 }
 
 # 设置环境变量
@@ -229,7 +246,11 @@ install_for_platform() {
             SKILL_DIR="$HOME/.claude/skills/opc-team"
             mkdir -p "$SKILL_DIR"
             mkdir -p "$SKILL_DIR/tools"
+            mkdir -p "$SKILL_DIR/dashboard"
+            mkdir -p "$SKILL_DIR/adapters"
             cp "$SCRIPT_DIR"/tools/*.py "$SKILL_DIR/tools/"
+            cp "$SCRIPT_DIR"/dashboard/* "$SKILL_DIR/dashboard/"
+            cp "$SCRIPT_DIR"/adapters/*.json "$SKILL_DIR/adapters/"
             cp "$SCRIPT_DIR/config.json" "$SKILL_DIR/"
             init_bundle_config "$SKILL_DIR" "claude_code"
             write_adapted_skill \
@@ -257,7 +278,11 @@ install_for_platform() {
             SKILL_DIR="$HOME/.openclaw/workspace-$AGENT_ID/skills/opc-team"
             mkdir -p "$SKILL_DIR"
             mkdir -p "$SKILL_DIR/tools"
+            mkdir -p "$SKILL_DIR/dashboard"
+            mkdir -p "$SKILL_DIR/adapters"
             cp "$SCRIPT_DIR"/tools/*.py "$SKILL_DIR/tools/"
+            cp "$SCRIPT_DIR"/dashboard/* "$SKILL_DIR/dashboard/"
+            cp "$SCRIPT_DIR"/adapters/*.json "$SKILL_DIR/adapters/"
             cp "$SCRIPT_DIR/config.json" "$SKILL_DIR/"
             init_bundle_config "$SKILL_DIR" "openclaw"
             write_adapted_skill \
@@ -362,7 +387,7 @@ EOF
 # 主函数
 main() {
     echo "========================================="
-    echo "  OPC Team v4.2.3 安装程序"
+    echo "  OPC Team v4.3.0 安装程序"
     echo "========================================="
     echo ""
 
@@ -426,6 +451,7 @@ main() {
     init_data_dirs
     init_config
     init_memory
+    init_agents
 
     # 设置环境变量
     if [ "$SKIP_ENV" = false ]; then

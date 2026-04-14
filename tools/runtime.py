@@ -155,6 +155,11 @@ def generate_risk_id() -> str:
     return reserve_id("R", "risks")
 
 
+def generate_assignment_id() -> str:
+    """生成派发任务 ID"""
+    return reserve_id("A", "assignments")
+
+
 # ==================== 统一日志 ====================
 
 def get_log_dir() -> Path:
@@ -196,7 +201,9 @@ def get_storage_path(entity_type: str) -> Path:
         "task": "tasks_dir",
         "decision": "decisions_dir",
         "risk": "risks_dir",
-        "memory": "memory_dir"
+        "memory": "memory_dir",
+        "agent": "agents_dir",
+        "assignment": "assignments_dir"
     }
     key = type_to_key.get(entity_type)
     if not key:

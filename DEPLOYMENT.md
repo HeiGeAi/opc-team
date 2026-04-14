@@ -32,7 +32,7 @@ cd opc-team
 
 ```bash
 # 1. 创建数据目录
-mkdir -p data/{tasks,decisions,risks,memory,logs}
+mkdir -p data/{tasks,decisions,risks,memory,logs,agents,assignments,dashboard}
 
 # 2. 初始化配置
 python3 tools/config.py init
@@ -40,7 +40,10 @@ python3 tools/config.py init
 # 3. 初始化记忆系统
 python3 tools/memory_sync.py init
 
-# 4. 测试安装
+# 4. 初始化 agent 注册表
+python3 tools/agent_ops.py init
+
+# 5. 测试安装
 python3 tools/task_flow.py create --title "测试" --ceo-input "测试安装"
 ```
 
@@ -182,6 +185,41 @@ message = client.messages.create(
 print(message.content)
 ```
 
+**多 agent 自定义模型路由**：
+```bash
+# 默认继承宿主平台模型
+python3 tools/agent_ops.py set-default-model --source platform_default
+
+# 让 CEO 主 agent 走 Anthropic
+python3 tools/agent_ops.py set-model \
+  --agent-id ceo \
+  --source custom_api \
+  --provider anthropic \
+  --model claude-sonnet-4-5 \
+  --api-key-env ANTHROPIC_API_KEY
+
+# 仅让策略官走自定义 API 模型
+python3 tools/agent_ops.py set-model \
+  --agent-id strategist \
+  --source custom_api \
+  --provider openai \
+  --model gpt-4.1 \
+  --api-key-env OPENAI_API_KEY
+
+# 由 CEO 主 agent 派发 sub-agent 任务
+python3 tools/agent_ops.py dispatch \
+  --from-agent ceo \
+  --to-agent strategist \
+  --title "输出三套策略方案" \
+  --brief "给出方案、风险和收敛建议" \
+  --task-id T001 \
+  --task-title "主任务标题" \
+  --auto-start
+
+# 启动本地看板
+python3 tools/dashboard.py serve
+```
+
 ---
 
 ### 6. API 调用（Function Calling）
@@ -234,12 +272,14 @@ if response.choices[0].message.get("function_call"):
 
 ```json
 {
-  "version": "4.2.3",
+  "version": "4.3.0",
   "platform": "generic",
   "paths": {
     "data_dir": "data",
     "tasks_dir": "${data_dir}/tasks",
-    ...
+    "assignments_dir": "${data_dir}/assignments",
+    "agents_dir": "${data_dir}/agents",
+    "dashboard_dir": "${data_dir}/dashboard"
   },
   "storage": {
     "backend": "file",  // file / sqlite
@@ -257,6 +297,19 @@ if response.choices[0].message.get("function_call"):
     "tool_prefix": "python3 tools/",
     "supports_bash": true,
     "supports_function_calling": false
+  },
+  "agent_defaults": {
+    "model": {
+      "source": "platform_default"
+    }
+  },
+  "dashboard": {
+    "host": "127.0.0.1",
+    "port": 8765,
+    "refresh_seconds": 8
+  },
+  "orchestration": {
+    "main_agent_id": "ceo"
   }
 }
 ```

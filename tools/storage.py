@@ -121,11 +121,14 @@ class FileStorage(Storage):
             backup_path = file_path.with_suffix(f".{datetime.now().strftime('%Y%m%d%H%M%S')}.bak")
             file_path.rename(backup_path)
 
-        # 写入新文件
-        with open(file_path, "w", encoding="utf-8") as f:
+        # 先加锁再覆盖，避免并发 open(..., "w") 提前截断导致文件损坏。
+        mode = "r+" if file_path.exists() else "w+"
+        with open(file_path, mode, encoding="utf-8") as f:
             self._lock_file(f)
             try:
+                f.seek(0)
                 json.dump(data, f, ensure_ascii=False, indent=2)
+                f.truncate()
             finally:
                 self._unlock_file(f)
 

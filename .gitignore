@@ -32,3 +32,7 @@ Thumbs.db
 
 # Test files
 test_*.json
+
+# Local preview artifacts
+.playwright-cli/
+output/

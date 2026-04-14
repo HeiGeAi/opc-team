@@ -2,7 +2,7 @@
 
 ![OPC Team agent ops hero](./assets/opc-team-hero.png)
 
-[![Version](https://img.shields.io/badge/version-v4.2.3-111827.svg)](./README.md)
+[![Version](https://img.shields.io/badge/version-v4.3.0-111827.svg)](./README.md)
 [![Python](https://img.shields.io/badge/python-3.7%2B-3776AB.svg?logo=python&logoColor=white)](./README.md)
 [![Platforms](https://img.shields.io/badge/platform-Claude%20Code%20%7C%20OpenClaw%20%7C%20Cursor%20%7C%20Windsurf%20%7C%20API-0F766E.svg)](./DEPLOYMENT.md)
 [![License](https://img.shields.io/badge/license-MIT-059669.svg)](./LICENSE)
@@ -39,6 +39,20 @@
 - **Risk Score**：把风险从“感觉有点危险”变成可量化的等级和应对预案。
 - **Memory Sync**：把即时记忆、短期摘要、长期经验同步到统一存储。
 - **Config + Storage**：支持平台适配、路径配置、文件存储和 SQLite 存储。
+- **Main/Sub Orchestration**：内置 `CEO主Agent -> sub-agent` 的主从编排结构，支持主 agent 派发子任务。
+- **Agent Board**：用本地看板实时查看主 agent、sub-agent、派发任务、风险密度和最近事件。
+- **Model Routing**：允许主 agent 和不同 sub-agent 指定不同 API provider / model；未配置时默认继承宿主平台模型。
+
+## 新增能力：主从编排 + 可视化看板 + 多模型路由
+
+- `tools/agent_ops.py` 维护主 agent / sub-agent 注册表、工作状态、派发任务和模型配置。
+- `tools/dashboard.py serve` 启动集成看板，浏览器直接派发 sub-agent、调整状态、切换模型路由。
+- agent 模型配置支持三种来源：
+  - `default`：继承全局默认路由
+  - `platform_default`：强制使用宿主平台模型
+  - `custom_api`：指定独立 provider / model / api_base / api_key_env
+- 默认全局路由是 `platform_default`，也就是“默认用模型本身的模型”。
+- 默认拓扑里 `ceo` 是主 agent，`coo / strategist / tech / marketing ...` 都是 sub-agent。
 
 ## 真实任务跑出来是什么样
 
@@ -50,7 +64,7 @@
 | 2026 年自媒体账号怎么变现 | 高客单咨询/陪跑 + 知识产品，广告和联盟只做补充 | 不把平台分成当唯一收入；先设计高信任高客单承接链路 |
 | 我 + AI 适合什么知识付费产品 | 模板库 + 清单 + 7 天短周期陪跑 | 避免大课和重社群；围绕明确结果交付，而不是堆知识点 |
 
-这类输出会沉淀到 `data/tasks/`、`data/decisions/`、`data/risks/` 和 `data/MEMORY.md`，用于回放过程、复盘假设和追踪后续执行。
+这类输出会沉淀到 `data/tasks/`、`data/decisions/`、`data/risks/`、`data/agents/`、`data/assignments/` 和 `data/MEMORY.md`，用于回放过程、复盘假设、追踪主从 agent 分工与后续执行。
 
 ---
 
@@ -84,8 +98,30 @@ python3 tools/decision_log.py create \
 
 # 4. 推进任务
 python3 tools/task_flow.py transition --task-id T001 --to in_strategy --actor "COO魏明远"
+python3 tools/task_flow.py progress --task-id T001 --message "策略官开始分析" --progress 30 --agent-id strategist
 python3 tools/task_flow.py transition --task-id T001 --to in_execution --actor "COO魏明远"
 python3 tools/task_flow.py transition --task-id T001 --to completed --actor "COO魏明远"
+
+# 5. 配置某个 agent 使用独立 API 大模型（可选）
+python3 tools/agent_ops.py set-model \
+  --agent-id strategist \
+  --source custom_api \
+  --provider openai \
+  --model gpt-4.1 \
+  --api-key-env OPENAI_API_KEY
+
+# 6. 由 CEO 主 agent 派发 sub-agent 任务
+python3 tools/agent_ops.py dispatch \
+  --from-agent ceo \
+  --to-agent strategist \
+  --title "输出三套策略方案" \
+  --brief "给出方案、风险和收敛建议" \
+  --task-id T001 \
+  --task-title "评估知识付费可行性" \
+  --auto-start
+
+# 7. 启动本地看板
+python3 tools/dashboard.py serve
 ```
 
 ### 在不同平台里怎么用
@@ -106,11 +142,15 @@ opc-team/
 ├── PLATFORM_ANALYSIS.md        # 平台兼容性分析
 ├── config.json                 # 配置文件
 ├── install.sh                  # 自动安装脚本
+├── dashboard/                  # 本地可视化看板
+│   └── index.html              # 单文件看板页面
 ├── tools/                      # CLI 工具层
 │   ├── task_flow.py            # 任务状态机
 │   ├── decision_log.py         # 决策履历管理
 │   ├── risk_score.py           # 风险量化评分
 │   ├── memory_sync.py          # 三级记忆系统
+│   ├── agent_ops.py            # 主从 agent、派发任务与模型路由
+│   ├── dashboard.py            # 集成看板 API 与本地服务
 │   ├── config.py               # 配置管理
 │   ├── storage.py              # 存储抽象层
 │   └── utils.py                # 通用工具
@@ -124,6 +164,9 @@ opc-team/
     ├── tasks/                  # 任务状态
     ├── decisions/              # 决策履历
     ├── risks/                  # 风险记录
+    ├── agents/                 # agent 状态与模型配置
+    ├── assignments/            # 主 agent 派发给 sub-agent 的任务
+    ├── dashboard/              # 看板导出 JSON
     ├── memory/                 # 三级记忆
     └── logs/                   # 操作日志
 ```
@@ -159,8 +202,8 @@ python3 tools/task_flow.py assess --task-id T001 --level L3 --reason "原因"
 # 状态流转
 python3 tools/task_flow.py transition --task-id T001 --to in_strategy --actor "COO魏明远"
 
-# 上报进度
-python3 tools/task_flow.py progress --task-id T001 --message "进展描述" --progress 50
+# 上报进度（可选绑定 agent，看板会自动同步）
+python3 tools/task_flow.py progress --task-id T001 --message "进展描述" --progress 50 --agent-id strategist
 
 # 查询状态
 python3 tools/task_flow.py status --task-id T001
@@ -232,6 +275,63 @@ python3 tools/memory_sync.py archive --category "CEO偏好" --content "内容"
 python3 tools/memory_sync.py sync --task-id T001
 ```
 
+### agent_ops.py - 主从 Agent / 派发 / 模型配置
+
+```bash
+# 初始化默认主从 agent 注册表
+python3 tools/agent_ops.py init
+
+# 查看所有 agent
+python3 tools/agent_ops.py list
+
+# 由 CEO 主 agent 派发 sub-agent 任务
+python3 tools/agent_ops.py dispatch \
+  --from-agent ceo \
+  --to-agent strategist \
+  --title "输出三套策略方案" \
+  --brief "给出方案、风险和收敛建议" \
+  --task-id T001 \
+  --task-title "评估知识付费可行性" \
+  --auto-start
+
+# 查看最近派发任务
+python3 tools/agent_ops.py list-assignments --open-only
+
+# 设置某个 agent 的运行状态
+python3 tools/agent_ops.py set-status \
+  --agent-id strategist \
+  --status running \
+  --task-id T001 \
+  --progress 35 \
+  --message "策略官开始分析" \
+  --assignment-id A001 \
+  --assigned-by ceo
+
+# 给某个 agent 配独立模型
+python3 tools/agent_ops.py set-model \
+  --agent-id strategist \
+  --source custom_api \
+  --provider openai \
+  --model gpt-4.1 \
+  --api-key-env OPENAI_API_KEY
+
+# 把某个 agent 切回宿主默认模型
+python3 tools/agent_ops.py set-model --agent-id strategist --source platform_default
+```
+
+### dashboard.py - 本地可视化看板
+
+```bash
+# 输出摘要 JSON
+python3 tools/dashboard.py summary --pretty
+
+# 导出摘要文件
+python3 tools/dashboard.py export
+
+# 启动本地看板
+python3 tools/dashboard.py serve --host 127.0.0.1 --port 8765
+```
+
 ---
 
 ## 🎯 任务分级
@@ -265,8 +365,14 @@ python3 tools/memory_sync.py sync --task-id T001
 
 ```json
 {
-  "version": "4.2.3",
+  "version": "4.3.0",
   "platform": "generic",
+  "paths": {
+    "tasks_dir": "${data_dir}/tasks",
+    "agents_dir": "${data_dir}/agents",
+    "assignments_dir": "${data_dir}/assignments",
+    "dashboard_dir": "${data_dir}/dashboard"
+  },
   "storage": {
     "backend": "file",  // file / sqlite
     "file_lock": true,
@@ -277,6 +383,19 @@ python3 tools/memory_sync.py sync --task-id T001
     "auto_sync_memory": true,
     "sla_check_enabled": true,
     "risk_alert_threshold": 3
+  },
+  "agent_defaults": {
+    "model": {
+      "source": "platform_default"
+    }
+  },
+  "dashboard": {
+    "host": "127.0.0.1",
+    "port": 8765,
+    "refresh_seconds": 8
+  },
+  "orchestration": {
+    "main_agent_id": "ceo"
   }
 }
 ```
@@ -364,6 +483,7 @@ python3 tools/memory_sync.py sync --task-id T001
 
 ## 🔄 版本历史
 
+- **v4.3.0** (2026-04-13): 新增 `CEO主Agent -> sub-agent` 主从编排、派发任务记录、多 agent 独立模型路由、可写集成看板与 dashboard API
 - **v4.2.3** (2026-04-10): 修复 completed 状态未自动收敛到 100% 进度、同任务并发写可能覆盖进度的问题，保持运行时语义与版本同步
 - **v4.2.2** (2026-04-09): 修复 CLI 失败返回码、Windows 运行时锁、参数校验、平台参数初始化
 - **v4.2.1** (2026-04-09): 修复 readonly_mode 写入穿透、平台安装后配置未适配、版本号治理

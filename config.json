@@ -1,5 +1,5 @@
 {
-  "version": "4.2.3",
+  "version": "4.3.0",
   "platform": "generic",
   "paths": {
     "data_dir": "data",
@@ -7,7 +7,10 @@
     "decisions_dir": "${data_dir}/decisions",
     "risks_dir": "${data_dir}/risks",
     "memory_dir": "${data_dir}/memory",
-    "logs_dir": "${data_dir}/logs"
+    "logs_dir": "${data_dir}/logs",
+    "agents_dir": "${data_dir}/agents",
+    "dashboard_dir": "${data_dir}/dashboard",
+    "assignments_dir": "${data_dir}/assignments"
   },
   "storage": {
     "backend": "file",
@@ -25,6 +28,26 @@
     "tool_prefix": "python3 tools/",
     "supports_bash": true,
     "supports_function_calling": false
+  },
+  "agent_defaults": {
+    "model": {
+      "source": "platform_default",
+      "provider": null,
+      "model": null,
+      "api_base": null,
+      "api_key_env": null,
+      "headers": {},
+      "temperature": null,
+      "max_tokens": null
+    }
+  },
+  "dashboard": {
+    "host": "127.0.0.1",
+    "port": 8765,
+    "refresh_seconds": 8
+  },
+  "orchestration": {
+    "main_agent_id": "ceo"
   },
   "platforms": {
     "claude_code": {

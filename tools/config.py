@@ -57,7 +57,7 @@ class Config:
     def _create_default_config(self) -> Dict:
         """创建默认配置"""
         default = {
-            "version": "4.2.3",
+            "version": "4.3.0",
             "platform": "generic",  # generic / claude_code / openclaw / cursor / api
             "paths": {
                 "data_dir": str(Path.cwd() / "data"),
@@ -65,7 +65,10 @@ class Config:
                 "decisions_dir": "${data_dir}/decisions",
                 "risks_dir": "${data_dir}/risks",
                 "memory_dir": "${data_dir}/memory",
-                "logs_dir": "${data_dir}/logs"
+                "logs_dir": "${data_dir}/logs",
+                "agents_dir": "${data_dir}/agents",
+                "dashboard_dir": "${data_dir}/dashboard",
+                "assignments_dir": "${data_dir}/assignments"
             },
             "storage": {
                 "backend": "file",  # file / sqlite
@@ -83,6 +86,26 @@ class Config:
                 "tool_prefix": "python3 tools/",
                 "supports_bash": True,
                 "supports_function_calling": False
+            },
+            "agent_defaults": {
+                "model": {
+                    "source": "platform_default",
+                    "provider": None,
+                    "model": None,
+                    "api_base": None,
+                    "api_key_env": None,
+                    "headers": {},
+                    "temperature": None,
+                    "max_tokens": None
+                }
+            },
+            "dashboard": {
+                "host": "127.0.0.1",
+                "port": 8765,
+                "refresh_seconds": 8
+            },
+            "orchestration": {
+                "main_agent_id": "ceo"
             }
         }
 
@@ -164,7 +187,17 @@ class Config:
 
     def ensure_dirs(self) -> None:
         """确保所有配置的目录存在"""
-        for key in ["data_dir", "tasks_dir", "decisions_dir", "risks_dir", "memory_dir", "logs_dir"]:
+        for key in [
+            "data_dir",
+            "tasks_dir",
+            "decisions_dir",
+            "risks_dir",
+            "memory_dir",
+            "logs_dir",
+            "agents_dir",
+            "dashboard_dir",
+            "assignments_dir"
+        ]:
             path = self.get_path(key)
             path.mkdir(parents=True, exist_ok=True)
 
