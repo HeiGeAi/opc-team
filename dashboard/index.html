@@ -2416,6 +2416,12 @@
         label: "DeepSeek · Chat",
         note: "适合成本敏感和快速响应",
         payload: { source: "custom_api", provider: "deepseek", model: "deepseek-chat" }
+      },
+      {
+        id: "custom",
+        label: "自定义模型",
+        note: "手动配置 API 参数",
+        payload: null
       }
     ];
     const STATUS_LABELS = {
@@ -2808,6 +2814,13 @@
     async function applyModelPreset(agentId, presetId, detailsEl) {
       const preset = MODEL_PRESETS.find((item) => item.id === presetId);
       if (!preset) return;
+
+      // 如果是自定义模型，弹出配置表单
+      if (presetId === "custom") {
+        showCustomModelDialog(agentId, detailsEl);
+        return;
+      }
+
       try {
         await apiPost(`/api/agents/${agentId}/model`, preset.payload);
         if (detailsEl) detailsEl.open = false;
@@ -2816,6 +2829,35 @@
       } catch (error) {
         setNotice(error.message || "模型切换失败", "error");
       }
+    }
+
+    function showCustomModelDialog(agentId, detailsEl) {
+      const provider = prompt("请输入 Provider (如 openai, anthropic, deepseek):");
+      if (!provider) return;
+
+      const model = prompt("请输入模型名称 (如 gpt-4, claude-3-opus):");
+      if (!model) return;
+
+      const apiBase = prompt("API Base URL (可选，留空使用默认):");
+      const apiKeyEnv = prompt("API Key 环境变量名 (如 OPENAI_API_KEY):");
+
+      const payload = {
+        source: "custom_api",
+        provider: provider.trim(),
+        model: model.trim(),
+        api_base: apiBase ? apiBase.trim() : null,
+        api_key_env: apiKeyEnv ? apiKeyEnv.trim() : null
+      };
+
+      apiPost(`/api/agents/${agentId}/model`, payload)
+        .then(() => {
+          if (detailsEl) detailsEl.open = false;
+          setNotice(`${agentId} 已配置自定义模型 ${provider} · ${model}`, "ok");
+          return refresh();
+        })
+        .catch((error) => {
+          setNotice(error.message || "自定义模型配置失败", "error");
+        });
     }
 
     async function refresh() {
