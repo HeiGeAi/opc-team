@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>OPC Agent Board</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' x2='1' y1='0' y2='1'%3E%3Cstop offset='0' stop-color='%2312252d'/%3E%3Cstop offset='1' stop-color='%23d36a2e'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='18' fill='url(%23g)'/%3E%3Ccircle cx='32' cy='32' r='14' fill='%23fff6ea'/%3E%3C/svg%3E">
   <style>
     :root {
       --ink: #12252d;
@@ -369,6 +370,54 @@
       font-size: 12px;
     }
 
+    .catalog-cta {
+      border: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 9px;
+      padding: 9px 14px;
+      border-radius: 999px;
+      background: linear-gradient(135deg, rgba(18, 37, 45, 0.96), rgba(48, 80, 92, 0.94));
+      color: rgba(255,255,255,0.96);
+      font-size: 11px;
+      font-family: var(--mono);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      cursor: pointer;
+      box-shadow:
+        0 14px 24px rgba(18, 37, 45, 0.16),
+        inset 0 1px 0 rgba(255,255,255,0.16);
+      transition: transform .18s ease, box-shadow .18s ease, filter .18s ease;
+    }
+
+    .catalog-cta::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: rgba(255, 210, 127, 0.96);
+      box-shadow: 0 0 0 5px rgba(255, 210, 127, 0.12);
+      flex: 0 0 auto;
+    }
+
+    .catalog-cta:hover {
+      transform: translateY(-1px);
+      filter: brightness(1.03);
+      box-shadow:
+        0 18px 28px rgba(18, 37, 45, 0.22),
+        inset 0 1px 0 rgba(255,255,255,0.18);
+    }
+
+    .catalog-cta[data-state="ready"] {
+      background: linear-gradient(135deg, rgba(26, 90, 68, 0.96), rgba(43, 118, 96, 0.92));
+    }
+
+    .catalog-cta[data-state="ready"]::before {
+      background: rgba(186, 245, 204, 0.96);
+      box-shadow: 0 0 0 5px rgba(186, 245, 204, 0.14);
+    }
+
     .hero-presence {
       position: relative;
       padding: 24px;
@@ -652,6 +701,26 @@
       border: 1px solid rgba(18, 37, 45, 0.08);
       background: rgba(255,255,255,0.95);
       animation: rise .45s ease both;
+    }
+
+    .status-card.route-card {
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.84), rgba(248, 243, 236, 0.72)),
+        radial-gradient(circle at top right, rgba(211, 106, 46, 0.14), transparent 42%);
+    }
+
+    .route-copy {
+      margin-top: 12px;
+      font-size: 12px;
+      line-height: 1.68;
+      color: rgba(18, 37, 45, 0.68);
+    }
+
+    .route-actions {
+      margin-top: 14px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
     }
 
     .agent-card {
@@ -1710,39 +1779,81 @@
       margin: 0;
       padding: 0;
       border: none;
+      min-width: 0;
+    }
+
+    .model-switch,
+    .model-switch.static {
+      margin-top: 0;
+      padding-top: 0;
+      border-top: none;
     }
 
     .model-switch summary {
       list-style: none;
       margin: 0;
-      padding: 7px 12px;
+      padding: 9px 12px;
       border-radius: 999px;
-      border: 1px solid rgba(18, 37, 45, 0.12);
-      background: #ffffff;
+      border: 1px solid rgba(18, 37, 45, 0.14);
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.98), rgba(246, 239, 230, 0.96));
       font-size: 12px;
-      color: rgba(18, 37, 45, 0.76);
+      color: rgba(18, 37, 45, 0.88);
       display: inline-flex;
       align-items: center;
-      gap: 8px;
+      justify-content: space-between;
+      gap: 10px;
       cursor: pointer;
       max-width: 100%;
-      min-width: 120px;
+      min-width: 160px;
+      box-shadow:
+        0 8px 18px rgba(18, 37, 45, 0.08),
+        inset 0 1px 0 rgba(255,255,255,0.92);
+      transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+    }
+
+    .model-switch summary:hover {
+      transform: translateY(-1px);
+      border-color: rgba(18, 37, 45, 0.2);
+      box-shadow:
+        0 12px 22px rgba(18, 37, 45, 0.1),
+        inset 0 1px 0 rgba(255,255,255,0.95);
     }
 
     .model-switch summary::-webkit-details-marker {
       display: none;
     }
 
-    .model-switch summary::after {
-      content: "▾";
-      font-size: 11px;
-      color: rgba(18, 37, 45, 0.5);
+    .model-summary-copy {
+      min-width: 0;
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-weight: 700;
+    }
+
+    .model-summary-state {
       flex-shrink: 0;
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: rgba(18, 37, 45, 0.08);
+      color: rgba(18, 37, 45, 0.58);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
     }
 
     .model-switch[open] summary {
-      background: #ffffff;
-      box-shadow: 0 8px 20px rgba(18, 37, 45, 0.12);
+      border-color: rgba(211, 106, 46, 0.22);
+      box-shadow:
+        0 14px 24px rgba(18, 37, 45, 0.12),
+        inset 0 1px 0 rgba(255,255,255,0.98);
+    }
+
+    .model-switch[open] .model-summary-state {
+      background: rgba(211, 106, 46, 0.12);
+      color: rgba(167, 92, 38, 0.88);
     }
 
     .model-panel {
@@ -1750,38 +1861,56 @@
       left: 0;
       top: calc(100% + 8px);
       z-index: 999;
-      min-width: 280px;
+      min-width: 320px;
+      display: grid;
+      gap: 10px;
+      padding: 12px;
+      border-radius: 18px;
+      border: 1px solid rgba(18, 37, 45, 0.12);
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.98), rgba(249, 244, 237, 0.96));
+      box-shadow: 0 22px 36px rgba(18, 37, 45, 0.18);
+      backdrop-filter: blur(10px);
+    }
+
+    .model-section {
       display: grid;
       gap: 6px;
-      padding: 10px;
-      border-radius: 16px;
-      border: 1px solid rgba(18, 37, 45, 0.12);
-      background: #ffffff;
-      box-shadow: 0 18px 34px rgba(18, 37, 45, 0.18);
+    }
+
+    .model-section-title {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: rgba(18, 37, 45, 0.46);
+      padding: 0 4px;
     }
 
     .model-option {
       width: 100%;
-      padding: 10px 12px;
-      border-radius: 12px;
+      padding: 11px 12px;
+      border-radius: 14px;
       border: 1px solid rgba(18, 37, 45, 0.08);
-      background: #ffffff;
+      background: rgba(255,255,255,0.94);
       color: var(--ink);
       text-align: left;
       cursor: pointer;
-      transition: transform .15s ease, background .15s ease, border-color .15s ease;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.75);
+      transition: transform .15s ease, background .15s ease, border-color .15s ease, box-shadow .15s ease;
     }
 
     .model-option:hover {
       transform: translateY(-1px);
       background: rgba(255,255,255,1);
-      border-color: rgba(18, 37, 45, 0.16);
-      box-shadow: 0 4px 12px rgba(18, 37, 45, 0.08);
+      border-color: rgba(18, 37, 45, 0.18);
+      box-shadow: 0 8px 16px rgba(18, 37, 45, 0.08);
     }
 
     .model-option.active {
-      background: rgba(31, 125, 93, 0.12);
-      border-color: rgba(31, 125, 93, 0.24);
+      background: linear-gradient(180deg, rgba(227, 244, 236, 0.92), rgba(240, 248, 243, 0.96));
+      border-color: rgba(31, 125, 93, 0.28);
+      box-shadow: inset 0 0 0 1px rgba(31, 125, 93, 0.08);
     }
 
     .model-option strong,
@@ -1810,6 +1939,158 @@
       margin-top: 2px;
       font-size: 11px;
       color: rgba(18, 37, 45, 0.54);
+    }
+
+    .model-chip {
+      display: inline-flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      max-width: 100%;
+      min-width: 160px;
+      padding: 9px 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(18, 37, 45, 0.1);
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.92), rgba(245, 240, 232, 0.88));
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.9);
+    }
+
+    .model-chip small {
+      flex-shrink: 0;
+      color: rgba(18, 37, 45, 0.46);
+      font-size: 10px;
+      font-family: var(--mono);
+      letter-spacing: 0.04em;
+    }
+
+    .model-chip.disabled {
+      color: rgba(18, 37, 45, 0.7);
+      background:
+        linear-gradient(180deg, rgba(250, 247, 242, 0.92), rgba(242, 236, 227, 0.88));
+      border-color: rgba(18, 37, 45, 0.08);
+      box-shadow: none;
+    }
+
+    .model-chip-actions {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    .model-link-btn {
+      width: auto;
+      border: none;
+      background: rgba(18, 37, 45, 0.1);
+      color: var(--ink);
+      box-shadow: none;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-family: var(--mono);
+      letter-spacing: 0.04em;
+    }
+
+    .model-link-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 14px rgba(18, 37, 45, 0.08);
+      background: rgba(18, 37, 45, 0.14);
+    }
+
+    .model-link-btn.secondary {
+      background: rgba(211, 106, 46, 0.12);
+      color: rgba(132, 70, 29, 0.92);
+    }
+
+    .model-link-btn.secondary:hover {
+      background: rgba(211, 106, 46, 0.18);
+    }
+
+    .model-panel-actions {
+      display: flex;
+      justify-content: flex-end;
+      padding-top: 4px;
+      border-top: 1px dashed rgba(18, 37, 45, 0.12);
+    }
+
+    .modal-shell[hidden] {
+      display: none;
+    }
+
+    .modal-shell {
+      position: fixed;
+      inset: 0;
+      z-index: 3000;
+      display: grid;
+      place-items: center;
+      padding: 20px;
+      background: rgba(18, 37, 45, 0.28);
+      backdrop-filter: blur(10px);
+    }
+
+    .modal-card {
+      width: min(520px, 100%);
+      padding: 20px;
+      border-radius: 24px;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.98), rgba(247, 241, 233, 0.95));
+      border: 1px solid rgba(18, 37, 45, 0.1);
+      box-shadow: 0 26px 48px rgba(18, 37, 45, 0.22);
+    }
+
+    .modal-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+
+    .modal-head h3 {
+      font-size: 1.35rem;
+    }
+
+    .modal-note {
+      margin: 0 0 16px;
+      font-size: 13px;
+      line-height: 1.6;
+      color: rgba(18, 37, 45, 0.68);
+    }
+
+    .modal-form {
+      display: grid;
+      gap: 12px;
+    }
+
+    .modal-row {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-top: 4px;
+    }
+
+    .modal-head button,
+    .modal-actions button {
+      width: auto;
+    }
+
+    .modal-secondary {
+      background: rgba(18, 37, 45, 0.08);
+      color: var(--ink);
+      border: 1px solid rgba(18, 37, 45, 0.08);
+      box-shadow: none;
+    }
+
+    .modal-secondary:hover {
+      background: rgba(18, 37, 45, 0.12);
+      box-shadow: none;
     }
 
     .mini-form {
@@ -2203,6 +2484,12 @@
       .hero-title span:last-child {
         font-size: 0.92em;
       }
+      .modal-row {
+        grid-template-columns: 1fr;
+      }
+      .modal-actions {
+        flex-direction: column-reverse;
+      }
     }
   </style>
 </head>
@@ -2229,7 +2516,7 @@
           </div>
           <h1 class="hero-title"><span>OPC</span><span>作战中心</span></h1>
         </div>
-        <p class="lead">这版看板只保留主 agent 和 sub-agent 的实时状态，用更干净的人物形象、节奏化的状态环和简化信息密度来表达当前运行态，不再把派发、切模型这些操作混进主界面。</p>
+        <p class="lead">这版看板只保留主 agent 和 sub-agent 的实时状态，用更干净的人物形象、节奏化的状态环和简化信息密度来表达当前运行态；模型接入单独收在固定入口里，不再把派发等复杂操作混进主界面。</p>
         <div class="hero-signal-row" aria-hidden="true">
           <div class="hero-signal" style="--delay:0;">
             <strong>主控在线</strong>
@@ -2262,12 +2549,13 @@
               <span style="--i:3;"></span>
               <span style="--i:0;"></span>
             </div>
-            <p>点击角色卡即可切换大模型</p>
+            <p>接入自定义模型后才开放切换</p>
           </div>
         </div>
         <div class="hero-chips">
           <div class="chip" id="generatedAt">正在加载...</div>
           <div class="chip" id="refreshAt">自动刷新</div>
+          <button type="button" class="catalog-cta" id="modelCatalogEntry" data-open-model-catalog data-state="empty">去接入模型</button>
         </div>
         <div class="metric-strip" id="stats"></div>
       </div>
@@ -2305,12 +2593,53 @@
     </section>
   </div>
 
+  <div class="modal-shell" id="modelCatalogModal" hidden>
+    <div class="modal-card">
+      <div class="modal-head">
+        <div>
+          <h3>接入自定义模型</h3>
+          <div class="meta">添加后才会出现在角色卡切换菜单里</div>
+        </div>
+        <button type="button" class="modal-secondary" data-close-model-modal>关闭</button>
+      </div>
+      <p class="modal-note">这里维护的是看板可选模型列表，不会自动替换所有 agent。保存后，你就可以在角色卡里手动切换到新接入的模型。</p>
+      <form class="modal-form" id="modelCatalogForm">
+        <div class="modal-row">
+          <label>
+            Provider
+            <input name="provider" placeholder="openai / anthropic / deepseek" required>
+          </label>
+          <label>
+            模型名
+            <input name="model" placeholder="gpt-4o-mini" required>
+          </label>
+        </div>
+        <div class="modal-row">
+          <label>
+            API Base
+            <input name="api_base" placeholder="可选，如 https://api.openai.com/v1">
+          </label>
+          <label>
+            API Key 环境变量
+            <input name="api_key_env" placeholder="可选，如 OPENAI_API_KEY">
+          </label>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="modal-secondary" data-close-model-modal>取消</button>
+          <button type="submit">保存并加入菜单</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <script>
     const STATE_CLASSES = new Set(["idle", "running", "waiting", "blocked", "completed", "offline", "queued", "done", "canceled"]);
     let refreshTimer = null;
     let pauseRefresh = false;
 
     const noticeEl = document.getElementById("notice");
+    const modelCatalogModalEl = document.getElementById("modelCatalogModal");
+    const modelCatalogFormEl = document.getElementById("modelCatalogForm");
     const AVATAR_THEMES = {
       default: {
         accent: "#d36a2e",
@@ -2395,7 +2724,7 @@
       brand: { gender: "f", hair: "wave", outfit: "soft", accessory: "earring" },
       legal: { gender: "m", hair: "slick", outfit: "tailored", accessory: "tie" }
     };
-    const MODEL_PRESETS = [
+    const MODEL_ROUTE_OPTIONS = [
       {
         id: "platform_default",
         label: "宿主默认模型",
@@ -2407,30 +2736,6 @@
         label: "全局默认模型",
         note: "继承看板默认路由",
         payload: { source: "default" }
-      },
-      {
-        id: "openai_gpt41",
-        label: "OpenAI · GPT-4.1",
-        note: "适合稳态主控与综合任务",
-        payload: { source: "custom_api", provider: "openai", model: "gpt-4.1" }
-      },
-      {
-        id: "anthropic_sonnet",
-        label: "Anthropic · Claude Sonnet",
-        note: "适合推理与写作型角色",
-        payload: { source: "custom_api", provider: "anthropic", model: "claude-sonnet" }
-      },
-      {
-        id: "deepseek_chat",
-        label: "DeepSeek · Chat",
-        note: "适合成本敏感和快速响应",
-        payload: { source: "custom_api", provider: "deepseek", model: "deepseek-chat" }
-      },
-      {
-        id: "custom",
-        label: "自定义模型",
-        note: "手动配置 API 参数",
-        payload: null
       }
     ];
     const STATUS_LABELS = {
@@ -2450,6 +2755,7 @@
       .replaceAll("<", "&lt;")
       .replaceAll(">", "&gt;")
       .replaceAll('"', "&quot;");
+    let latestSummary = null;
 
     function formatTime(value) {
       if (!value) return "未更新";
@@ -2466,6 +2772,25 @@
       noticeEl.className = `notice ${kind}`.trim();
       noticeEl.textContent = text || "";
       noticeEl.style.display = text ? "block" : "none";
+    }
+
+    function setRefreshPaused(paused) {
+      pauseRefresh = paused;
+    }
+
+    function openModelCatalogModal() {
+      modelCatalogModalEl.hidden = false;
+      setRefreshPaused(true);
+      const firstInput = modelCatalogFormEl?.elements?.provider;
+      if (firstInput) {
+        setTimeout(() => firstInput.focus(), 20);
+      }
+    }
+
+    function closeModelCatalogModal() {
+      modelCatalogModalEl.hidden = true;
+      modelCatalogFormEl?.reset();
+      setRefreshPaused(false);
     }
 
     async function apiPost(url, payload) {
@@ -2542,32 +2867,95 @@
       return text;
     }
 
+    function customModelOptions(summary) {
+      const customModels = Array.isArray(summary?.model_catalog?.custom_models)
+        ? summary.model_catalog.custom_models
+        : [];
+      return customModels
+        .filter((item) => item?.provider && item?.model)
+        .map((item) => ({
+          id: item.id || `custom_api|${item.provider}|${item.model}`,
+          label: item.display || `${item.provider} · ${item.model}`,
+          note: item.note || "用户已接入模型",
+          payload: {
+            source: "custom_api",
+            provider: item.provider,
+            model: item.model,
+            api_base: item.api_base || null,
+            api_key_env: item.api_key_env || null,
+            headers: item.headers || {},
+            temperature: item.temperature ?? null,
+            max_tokens: item.max_tokens ?? null
+          }
+        }));
+    }
+
+    function modelMenuSections(summary) {
+      const customOptions = customModelOptions(summary);
+      if (!customOptions.length) return [];
+      return [
+        { key: "route", title: "路由方式", options: MODEL_ROUTE_OPTIONS },
+        { key: "custom", title: "已接入模型", options: customOptions }
+      ];
+    }
+
+    function findModelOption(summary, presetId) {
+      return modelMenuSections(summary)
+        .flatMap((section) => section.options)
+        .find((item) => item.id === presetId);
+    }
+
     function presetIsActive(agent, preset) {
       const config = agent.model_config || {};
-      // 自定义模型选项没有 payload，永远不激活
-      if (!preset.payload) return false;
       if ((config.source || "default") !== preset.payload.source) return false;
       if (preset.payload.source !== "custom_api") return true;
       return (config.provider || "") === (preset.payload.provider || "") &&
         (config.model || "") === (preset.payload.model || "");
     }
 
-    function modelSwitcherMarkup(agent) {
+    function modelSwitcherMarkup(agent, summary) {
+      const sections = modelMenuSections(summary);
+      const label = esc(compactModelLabel(agent.effective_model?.display));
+      if (!sections.length) {
+        return `
+          <div class="model-switch static">
+            <div class="model-chip disabled" title="暂无已接入的自定义模型">
+              <span class="model-summary-copy">模型 ${label}</span>
+              <span class="model-chip-actions">
+                <small>未接入 API</small>
+                <button type="button" class="model-link-btn" data-open-model-catalog>去接入</button>
+              </span>
+            </div>
+          </div>
+        `;
+      }
+
       return `
         <details class="model-switch">
-          <summary title="点击切换大模型">模型 ${esc(compactModelLabel(agent.effective_model?.display))}</summary>
+          <summary title="点击切换大模型">
+            <span class="model-summary-copy">模型 ${label}</span>
+            <span class="model-summary-state">可切换</span>
+          </summary>
           <div class="model-panel">
-            ${MODEL_PRESETS.map((preset) => `
-              <button
-                type="button"
-                class="model-option ${presetIsActive(agent, preset) ? "active" : ""}"
-                data-agent-id="${esc(agent.agent_id)}"
-                data-preset-id="${preset.id}"
-              >
-                <strong>${esc(preset.label)}</strong>
-                <small>${esc(preset.note)}</small>
-              </button>
+            ${sections.map((section) => `
+              <div class="model-section">
+                <div class="model-section-title">${esc(section.title)}</div>
+                ${section.options.map((preset) => `
+                  <button
+                    type="button"
+                    class="model-option ${presetIsActive(agent, preset) ? "active" : ""}"
+                    data-agent-id="${esc(agent.agent_id)}"
+                    data-preset-id="${preset.id}"
+                  >
+                    <strong>${esc(preset.label)}</strong>
+                    <small>${esc(preset.note)}</small>
+                  </button>
+                `).join("")}
+              </div>
             `).join("")}
+            <div class="model-panel-actions">
+              <button type="button" class="model-link-btn secondary" data-open-model-catalog>接入新模型</button>
+            </div>
           </div>
         </details>
       `;
@@ -2736,7 +3124,7 @@
           </div>
           <div class="sub-meta">
             <div class="tiny-pill">角色 ${esc(agent.role || "-")}</div>
-            ${modelSwitcherMarkup(agent)}
+            ${modelSwitcherMarkup(agent, summary)}
             <div class="tiny-pill">更新 ${esc(formatTimeShort(agent.updated_at))}</div>
           </div>
         </article>
@@ -2747,6 +3135,11 @@
       const root = document.getElementById("statusOverview");
       const total = Math.max(1, Number(summary.metrics?.agents_total || 0));
       const items = statusItems(summary);
+      const customCount = Number(summary.model_catalog?.custom_models?.length || 0);
+      const switchingEnabled = Boolean(summary.model_catalog?.switching_enabled);
+      const routeCopy = customCount
+        ? `当前已接入 ${customCount} 个自定义模型。点击下方入口可以继续新增；角色卡里的模型标签也已经开放切换。`
+        : "当前还没有接入任何自定义模型。先点下方入口补充 provider 和模型名，接入后角色卡才会开放切换。";
       root.innerHTML = `
         <article class="status-card">
           <div class="meta">Agent States</div>
@@ -2760,16 +3153,30 @@
             `).join("")}
           </div>
         </article>
-        <article class="status-card">
-          <div class="meta">Board Signal</div>
+        <article class="status-card route-card">
+          <div class="meta">Model Routing</div>
           <div class="tiny-row">
+            <div class="tiny-pill">${customCount ? `已接入 ${customCount} 个模型` : "未接入自定义模型"}</div>
+            <div class="tiny-pill">${switchingEnabled ? "角色卡可切换" : "接入后开启切换"}</div>
             <div class="tiny-pill">主 agent ${esc(summary.main_agent?.status_label || "未加载")}</div>
-            <div class="tiny-pill">活跃 ${summary.metrics?.agents_active ?? 0}</div>
-            <div class="tiny-pill">总览 ${summary.metrics?.agents_total ?? 0}</div>
           </div>
-          <div class="subline" style="margin-top:12px;">当前看板只读展示运行状态。复杂操作入口已从主界面移除，避免信息噪音。</div>
+          <div class="route-copy">${esc(routeCopy)}</div>
+          <div class="route-actions">
+            <button type="button" class="catalog-cta" data-open-model-catalog data-state="${switchingEnabled ? "ready" : "empty"}">${switchingEnabled ? "管理已接入模型" : "去接入模型"}</button>
+          </div>
         </article>
       `;
+    }
+
+    function renderModelCatalogEntry(summary) {
+      const entryEl = document.getElementById("modelCatalogEntry");
+      if (!entryEl) return;
+
+      const customCount = Number(summary.model_catalog?.custom_models?.length || 0);
+      const switchingEnabled = Boolean(summary.model_catalog?.switching_enabled);
+
+      entryEl.dataset.state = switchingEnabled ? "ready" : "empty";
+      entryEl.textContent = switchingEnabled ? `管理模型接入 ${customCount}` : "去接入模型";
     }
 
     function renderEvents(events, agents = []) {
@@ -2813,6 +3220,8 @@
     }
 
     function render(summary) {
+      latestSummary = summary;
+      renderModelCatalogEntry(summary);
       renderStats(summary);
       renderMainAgent(summary);
       renderSubAgents(summary);
@@ -2823,14 +3232,8 @@
     }
 
     async function applyModelPreset(agentId, presetId, detailsEl) {
-      const preset = MODEL_PRESETS.find((item) => item.id === presetId);
+      const preset = findModelOption(latestSummary, presetId);
       if (!preset) return;
-
-      // 如果是自定义模型，弹出配置表单
-      if (presetId === "custom") {
-        showCustomModelDialog(agentId, detailsEl);
-        return;
-      }
 
       try {
         await apiPost(`/api/agents/${agentId}/model`, preset.payload);
@@ -2840,35 +3243,6 @@
       } catch (error) {
         setNotice(error.message || "模型切换失败", "error");
       }
-    }
-
-    function showCustomModelDialog(agentId, detailsEl) {
-      const provider = prompt("请输入 Provider (如 openai, anthropic, deepseek):");
-      if (!provider) return;
-
-      const model = prompt("请输入模型名称 (如 gpt-4, claude-3-opus):");
-      if (!model) return;
-
-      const apiBase = prompt("API Base URL (可选，留空使用默认):");
-      const apiKeyEnv = prompt("API Key 环境变量名 (如 OPENAI_API_KEY):");
-
-      const payload = {
-        source: "custom_api",
-        provider: provider.trim(),
-        model: model.trim(),
-        api_base: apiBase ? apiBase.trim() : null,
-        api_key_env: apiKeyEnv ? apiKeyEnv.trim() : null
-      };
-
-      apiPost(`/api/agents/${agentId}/model`, payload)
-        .then(() => {
-          if (detailsEl) detailsEl.open = false;
-          setNotice(`${agentId} 已配置自定义模型 ${provider} · ${model}`, "ok");
-          return refresh();
-        })
-        .catch((error) => {
-          setNotice(error.message || "自定义模型配置失败", "error");
-        });
     }
 
     async function refresh() {
@@ -2892,7 +3266,46 @@
       }
     }
 
+    modelCatalogFormEl?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const formData = new FormData(modelCatalogFormEl);
+      const payload = {
+        provider: String(formData.get("provider") || "").trim(),
+        model: String(formData.get("model") || "").trim(),
+        api_base: String(formData.get("api_base") || "").trim() || null,
+        api_key_env: String(formData.get("api_key_env") || "").trim() || null
+      };
+
+      if (!payload.provider || !payload.model) {
+        setNotice("请先填写 provider 和模型名", "error");
+        return;
+      }
+
+      try {
+        await apiPost("/api/model-catalog", payload);
+        closeModelCatalogModal();
+        setNotice(`已接入模型 ${payload.provider} · ${payload.model}`, "ok");
+        await refresh();
+      } catch (error) {
+        setNotice(error.message || "模型接入失败", "error");
+      }
+    });
+
     document.addEventListener("click", (event) => {
+      const openCatalog = event.target.closest("[data-open-model-catalog]");
+      if (openCatalog) {
+        event.preventDefault();
+        openModelCatalogModal();
+        return;
+      }
+
+      const closeCatalog = event.target.closest("[data-close-model-modal]");
+      if (closeCatalog || event.target === modelCatalogModalEl) {
+        event.preventDefault();
+        closeModelCatalogModal();
+        return;
+      }
+
       const option = event.target.closest(".model-option");
       if (option) {
         event.preventDefault();
@@ -2908,10 +3321,12 @@
       const modelSwitch = event.target.closest(".model-switch");
       if (modelSwitch) {
         // 用户点击了下拉菜单，暂停自动刷新
-        pauseRefresh = true;
+        setRefreshPaused(true);
         // 5 秒后恢复自动刷新
         setTimeout(() => {
-          pauseRefresh = false;
+          if (modelCatalogModalEl.hidden) {
+            setRefreshPaused(false);
+          }
         }, 5000);
         return;
       }
@@ -2921,8 +3336,14 @@
       document.querySelectorAll(".model-switch[open]").forEach((item) => {
         item.open = false;
       });
-      if (hadOpenMenu) {
-        pauseRefresh = false;
+      if (hadOpenMenu && modelCatalogModalEl.hidden) {
+        setRefreshPaused(false);
+      }
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && !modelCatalogModalEl.hidden) {
+        closeModelCatalogModal();
       }
     });
 

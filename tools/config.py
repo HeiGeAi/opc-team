@@ -99,6 +99,9 @@ class Config:
                     "max_tokens": None
                 }
             },
+            "model_catalog": {
+                "custom_models": []
+            },
             "dashboard": {
                 "host": "127.0.0.1",
                 "port": 8765,

@@ -25,6 +25,8 @@ from agent_ops import (
     get_main_agent_id,
     list_agents,
     list_assignments,
+    list_registered_custom_models,
+    register_custom_model,
     set_agent_model,
     set_default_model,
     update_agent_status
@@ -217,6 +219,7 @@ def build_summary() -> Dict:
     agent_states = Counter(agent.get("status", "unknown") for agent in enriched_agents)
     assignment_states = Counter(assignment.get("status", "unknown") for assignment in assignments)
     main_agent = next((agent for agent in enriched_agents if agent["agent_id"] == main_agent_id), None)
+    custom_models = list_registered_custom_models()
 
     return {
         "generated_at": datetime.now().isoformat(),
@@ -224,6 +227,10 @@ def build_summary() -> Dict:
         "defaults": {
             "main_agent_id": main_agent_id,
             "default_model": get_default_model_config()
+        },
+        "model_catalog": {
+            "custom_models": custom_models,
+            "switching_enabled": bool(custom_models)
         },
         "metrics": {
             "agents_total": len(enriched_agents),
@@ -367,6 +374,23 @@ class DashboardHandler(BaseHTTPRequestHandler):
             result, error = _safe_call(
                 set_default_model,
                 source=payload.get("source"),
+                provider=payload.get("provider") or None,
+                model=payload.get("model") or None,
+                api_base=payload.get("api_base") or None,
+                api_key_env=payload.get("api_key_env") or None,
+                temperature=_coerce_optional_float(payload.get("temperature")),
+                max_tokens=_coerce_optional_int(payload.get("max_tokens")),
+                headers=payload.get("headers") if isinstance(payload.get("headers"), dict) else {}
+            )
+            if error:
+                self._send_json({"success": False, "error": error}, status=400)
+            else:
+                self._send_json({"success": True, "model": result, "summary": build_summary()})
+            return
+
+        if path == "/api/model-catalog":
+            result, error = _safe_call(
+                register_custom_model,
                 provider=payload.get("provider") or None,
                 model=payload.get("model") or None,
                 api_base=payload.get("api_base") or None,

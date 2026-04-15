@@ -15,6 +15,7 @@ import copy
 import json
 from datetime import datetime
 from typing import Dict, List, Optional
+from urllib.parse import urlparse
 
 from config import get_config
 from runtime import (
@@ -214,6 +215,129 @@ def model_display(model_config: Dict) -> str:
     provider = model_config.get("provider") or "custom"
     model = model_config.get("model") or "未指定模型"
     return f"{provider} · {model}"
+
+
+def _model_registry_note(api_base: Optional[str], api_key_env: Optional[str]) -> str:
+    note_bits: List[str] = []
+    if api_base:
+        parsed = urlparse(api_base)
+        note_bits.append(parsed.netloc or api_base)
+    if api_key_env:
+        note_bits.append(api_key_env)
+    return " / ".join(note_bits) if note_bits else "用户已接入模型"
+
+
+def _model_registry_entry(model_config: Optional[Dict]) -> Optional[Dict]:
+    normalized = _normalize_model_config(model_config)
+    if normalized.get("source") != "custom_api":
+        return None
+
+    provider = str(normalized.get("provider") or "").strip()
+    model = str(normalized.get("model") or "").strip()
+    if not provider or not model:
+        return None
+
+    api_base = normalized.get("api_base") or None
+    api_key_env = normalized.get("api_key_env") or None
+    headers = normalized.get("headers") if isinstance(normalized.get("headers"), dict) else {}
+    entry_id = "custom_api|" + "|".join([
+        provider.lower(),
+        model.lower(),
+        api_base or "",
+        api_key_env or ""
+    ])
+    return {
+        "id": entry_id,
+        "source": "custom_api",
+        "provider": provider,
+        "model": model,
+        "api_base": api_base,
+        "api_key_env": api_key_env,
+        "headers": headers,
+        "temperature": normalized.get("temperature"),
+        "max_tokens": normalized.get("max_tokens"),
+        "display": model_display(normalized),
+        "note": _model_registry_note(api_base, api_key_env)
+    }
+
+
+def list_registered_custom_models() -> List[Dict]:
+    config = get_config()
+    raw_registry = config.get("model_catalog.custom_models", []) or []
+    sources: List[Optional[Dict]] = list(raw_registry)
+
+    default_model = get_default_model_config()
+    if default_model.get("source") == "custom_api":
+        sources.append(default_model)
+
+    for agent in list_agents():
+        model_config = agent.get("model_config") or {}
+        if model_config.get("source") == "custom_api":
+            sources.append(model_config)
+
+    registry: List[Dict] = []
+    seen = set()
+    for item in sources:
+        entry = _model_registry_entry(item)
+        if not entry or entry["id"] in seen:
+            continue
+        seen.add(entry["id"])
+        registry.append(entry)
+    return registry
+
+
+def _register_custom_model(model_config: Optional[Dict]) -> None:
+    entry = _model_registry_entry(model_config)
+    if not entry:
+        return
+
+    config = get_config()
+    registry = config.get("model_catalog.custom_models", []) or []
+    merged_sources = list(registry) + [entry]
+    merged_registry: List[Dict] = []
+    seen = set()
+    for item in merged_sources:
+        normalized = _model_registry_entry(item)
+        if not normalized or normalized["id"] in seen:
+            continue
+        seen.add(normalized["id"])
+        merged_registry.append(normalized)
+    config.set("model_catalog.custom_models", merged_registry)
+
+
+def register_custom_model(
+    provider: str,
+    model: str,
+    api_base: Optional[str] = None,
+    api_key_env: Optional[str] = None,
+    temperature: Optional[float] = None,
+    max_tokens: Optional[int] = None,
+    headers: Optional[Dict] = None
+) -> Dict:
+    provider = str(provider or "").strip()
+    model = str(model or "").strip()
+    if not provider or not model:
+        emit_error("接入模型时必须提供 provider 和 model")
+
+    if not require_writable("接入自定义模型"):
+        return {}
+
+    model_config = _normalize_model_config({
+        "source": "custom_api",
+        "provider": provider,
+        "model": model,
+        "api_base": api_base,
+        "api_key_env": api_key_env,
+        "headers": headers or {},
+        "temperature": temperature,
+        "max_tokens": max_tokens
+    })
+    _register_custom_model(model_config)
+    log_operation("register_custom_model", provider, "agent", {
+        "provider": provider,
+        "model": model
+    })
+    return _model_registry_entry(model_config) or model_config
 
 
 def _new_agent_record(template: Dict) -> Dict:
@@ -680,6 +804,8 @@ def set_agent_model(
         "temperature": temperature,
         "max_tokens": max_tokens
     })
+    if source == "custom_api":
+        _register_custom_model(agent["model_config"])
     agent["updated_at"] = datetime.now().isoformat()
     _persist_agent(agent)
     log_operation("set_model", agent_id, "agent", {
@@ -718,6 +844,8 @@ def set_default_model(
         "temperature": temperature,
         "max_tokens": max_tokens
     })
+    if source == "custom_api":
+        _register_custom_model(model_config)
     get_config().set("agent_defaults.model", model_config)
     log_operation("set_default_model", "default", "agent", model_config)
     return model_config
