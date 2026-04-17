@@ -279,7 +279,7 @@ if response.choices[0].message.get("function_call"):
 
 ```json
 {
-  "version": "4.3.0",
+  "version": "4.4.0",
   "platform": "generic",
   "paths": {
     "data_dir": "data",
@@ -310,13 +310,17 @@ if response.choices[0].message.get("function_call"):
       "source": "platform_default"
     }
   },
+  "model_catalog": {
+    "custom_models": []
+  },
   "dashboard": {
     "host": "127.0.0.1",
     "port": 8765,
     "refresh_seconds": 8
   },
   "orchestration": {
-    "main_agent_id": "ceo"
+    "main_agent_id": "ceo",
+    "agent_pack": "default"
   }
 }
 ```

@@ -3,7 +3,7 @@
   "agent_id": "finance",
   "name": "财务张晓燕",
   "role": "财务",
-  "sort_order": 70,
+  "sort_order": 75,
   "agent_type": "sub",
   "parent_agent_id": "ceo",
   "description": "测算成本、收益与盈亏平衡点。",

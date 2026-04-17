@@ -1,4 +1,4 @@
-# OPC公司Agent团队 v4.3.0 (Universal Edition)
+# OPC公司Agent团队 v4.4.0 (Universal Edition)
 
 **这是一个跨平台通用的主从 Agent 协作框架。**
 
@@ -495,8 +495,8 @@ python3 /path/to/opc-team/tools/task_flow.py create ...
 
 ## 八、版本信息
 
-- **版本**: v4.3.0 Universal Edition
-- **发布日期**: 2026-04-13
+- **版本**: v4.4.0 Universal Edition
+- **发布日期**: 2026-04-17
 - **兼容平台**: Claude Code / OpenClaw / Cursor / Windsurf / 通用 CLI
 - **依赖**: Python 3.7+
 - **License**: MIT

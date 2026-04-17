@@ -3,7 +3,7 @@
   "agent_id": "brand",
   "name": "品牌林可欣",
   "role": "品牌",
-  "sort_order": 80,
+  "sort_order": 85,
   "agent_type": "sub",
   "parent_agent_id": "ceo",
   "description": "统一叙事、表达与品牌感知。",

@@ -3,7 +3,7 @@
   "agent_id": "legal",
   "name": "法务王建国",
   "role": "法务",
-  "sort_order": 90,
+  "sort_order": 100,
   "agent_type": "sub",
   "parent_agent_id": "ceo",
   "description": "识别合规风险并提出规避方案。",

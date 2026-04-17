@@ -2,7 +2,7 @@
 
 ![OPC Team agent ops hero](./assets/opc-team-hero.png)
 
-[![Version](https://img.shields.io/badge/version-v4.3.0-111827.svg)](./README.md)
+[![Version](https://img.shields.io/badge/version-v4.4.0-111827.svg)](./README.md)
 [![Python](https://img.shields.io/badge/python-3.7%2B-3776AB.svg?logo=python&logoColor=white)](./README.md)
 [![Platforms](https://img.shields.io/badge/platform-Claude%20Code%20%7C%20OpenClaw%20%7C%20Cursor%20%7C%20Windsurf%20%7C%20API-0F766E.svg)](./DEPLOYMENT.md)
 [![License](https://img.shields.io/badge/license-MIT-059669.svg)](./LICENSE)
@@ -40,10 +40,12 @@
 - **Memory Sync**：把即时记忆、短期摘要、长期经验同步到统一存储。
 - **Config + Storage**：支持平台适配、路径配置、文件存储和 SQLite 存储。
 - **Agent Catalog**：把内置角色定义放到 `agents/*.md` 或 `agents/<pack>/*.md`，用统一 schema + lint 管理角色层。
+- **20-Role Bench**：default pack 内置 20 个可编排角色，覆盖策略、研究、产品、体验、增长、技术、运维、数据、财务、法务、客户成功等链路。
 - **Role Packs**：支持把默认角色集复制成新 pack，并在运行时切换不同角色包。
 - **Main/Sub Orchestration**：内置 `CEO主Agent -> sub-agent` 的主从编排结构，支持主 agent 派发子任务。
 - **Agent Board**：用本地看板实时查看主 agent、sub-agent、派发任务、风险密度和最近事件。
 - **Model Routing**：允许主 agent 和不同 sub-agent 指定不同 API provider / model；未配置时默认继承宿主平台模型。
+- **Workflow Runbooks**：补充 `OPC-Micro / Sprint / Control` 三种运行模式，以及 handoff/runbook 模板。
 
 ## 新增能力：主从编排 + 可视化看板 + 多模型路由
 
@@ -56,7 +58,7 @@
   - `platform_default`：强制使用宿主平台模型
   - `custom_api`：指定独立 provider / model / api_base / api_key_env
 - 默认全局路由是 `platform_default`，也就是“默认用模型本身的模型”。
-- 默认拓扑里 `ceo` 是主 agent，`coo / strategist / tech / marketing ...` 都是 sub-agent。
+- 默认拓扑里 `ceo` 是主 agent，default pack 现在内置 20 个角色，从项目、研究、产品、体验、增长到技术、运维、QA、数据、采购、HR、法务都可直接编排。
 
 ## 真实任务跑出来是什么样
 
@@ -78,6 +80,13 @@
 - `tools/agent_catalog.py scaffold-pack` 可以从默认角色复制出一个新 pack，再按行业或企业场景定制。
 - `tools/agent_ops.py switch-pack` 可以直接切换当前运行 pack。
 - 这使得你后续扩角色、做行业包、做平台适配时，不必直接修改编排代码。
+
+## 工作流层：把角色编排变成可复用 runbook
+
+- `strategy/QUICKSTART.md` 提供 `OPC-Micro / OPC-Sprint / OPC-Control` 三种运行模式。
+- `strategy/coordination/handoff-templates.md` 提供主从交接、QA 通过/不通过、升级报告模板。
+- `strategy/runbooks/` 里提供 `startup-mvp / enterprise-feature / incident-response` 三类场景 runbook。
+- 这样 OPC 不只是“能派发角色”，而是能把不同场景的执行方式固定下来。
 
 ---
 
@@ -163,6 +172,10 @@ opc-team/
 │   └── <pack>/                 # 可选：行业/企业角色包
 │       ├── ceo.md
 │       └── ...
+├── strategy/                   # 工作流层（模式、交接模板、runbook）
+│   ├── QUICKSTART.md           # OPC-Micro / Sprint / Control
+│   ├── coordination/           # 标准交接模板
+│   └── runbooks/               # 场景化 runbook
 ├── dashboard/                  # 本地可视化看板
 │   └── index.html              # 单文件看板页面
 ├── tools/                      # CLI 工具层
@@ -253,6 +266,15 @@ python3 tools/agent_catalog.py manifest --format markdown
 # 从 default 复制一个新 pack
 python3 tools/agent_catalog.py scaffold-pack --from-pack default --to-pack enterprise
 ```
+
+当前 `default` pack 的 20 个角色按链路分成几组：
+
+- 主控与调度：`ceo`、`coo`、`project`
+- 策略与研究：`strategist`、`research`
+- 产品与体验：`product`、`ux`
+- 增长与商业化：`marketing`、`growth`、`sales`、`brand`
+- 技术与交付：`tech`、`devops`、`qa`、`data`
+- 经营与保障：`finance`、`procurement`、`customer_success`、`hr`、`legal`
 
 ### agent_convert.py - 平台转换器
 
@@ -407,6 +429,19 @@ python3 tools/dashboard.py export
 python3 tools/dashboard.py serve --host 127.0.0.1 --port 8765
 ```
 
+### strategy/ - 工作流运行模板
+
+```bash
+# 查看三种标准运行模式
+sed -n '1,220p' strategy/QUICKSTART.md
+
+# 打开标准交接模板
+sed -n '1,220p' strategy/coordination/handoff-templates.md
+
+# 查看一个场景 runbook
+sed -n '1,220p' strategy/runbooks/scenario-enterprise-feature.md
+```
+
 ---
 
 ## 🎯 任务分级
@@ -440,7 +475,7 @@ python3 tools/dashboard.py serve --host 127.0.0.1 --port 8765
 
 ```json
 {
-  "version": "4.3.0",
+  "version": "4.4.0",
   "platform": "generic",
   "paths": {
     "tasks_dir": "${data_dir}/tasks",
@@ -464,13 +499,17 @@ python3 tools/dashboard.py serve --host 127.0.0.1 --port 8765
       "source": "platform_default"
     }
   },
+  "model_catalog": {
+    "custom_models": []
+  },
   "dashboard": {
     "host": "127.0.0.1",
     "port": 8765,
     "refresh_seconds": 8
   },
   "orchestration": {
-    "main_agent_id": "ceo"
+    "main_agent_id": "ceo",
+    "agent_pack": "default"
   }
 }
 ```
@@ -558,6 +597,7 @@ python3 tools/memory_sync.py sync --task-id T001
 
 ## 🔄 版本历史
 
+- **v4.4.0** (2026-04-17): 默认角色扩充到 20 个，补充 `strategy/` 工作流层、handoff 模板与场景 runbook，强化 pack 化编排说明
 - **v4.3.0** (2026-04-13): 新增 `CEO主Agent -> sub-agent` 主从编排、派发任务记录、多 agent 独立模型路由、可写集成看板与 dashboard API
 - **v4.2.3** (2026-04-10): 修复 completed 状态未自动收敛到 100% 进度、同任务并发写可能覆盖进度的问题，保持运行时语义与版本同步
 - **v4.2.2** (2026-04-09): 修复 CLI 失败返回码、Windows 运行时锁、参数校验、平台参数初始化
@@ -589,7 +629,7 @@ MIT
 ## 📧 联系方式
 
 如有问题，请联系：
-- **作者**: Blake
+- **作者**: Blake徐
 - **微信**: 488137
 - **GitHub**: [@HeiGeAi](https://github.com/HeiGeAi)
 
