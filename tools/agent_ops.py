@@ -17,6 +17,7 @@ from datetime import datetime
 from typing import Dict, List, Optional
 from urllib.parse import urlparse
 
+from agent_catalog import list_agent_packs, load_agent_catalog, resolve_pack
 from config import get_config
 from runtime import (
     emit_error,
@@ -48,102 +49,6 @@ ASSIGNMENT_STATUS_LABELS = {
     "done": "已完成",
     "canceled": "已取消"
 }
-
-DEFAULT_AGENTS = [
-    {
-        "agent_id": "ceo",
-        "name": "CEO主Agent",
-        "role": "CEO",
-        "agent_type": "main",
-        "description": "主控编排代理，负责拆解任务、选择 sub-agent、汇总结果。",
-        "capabilities": ["dispatch", "model_routing", "status_control", "summary"]
-    },
-    {
-        "agent_id": "coo",
-        "name": "COO魏明远",
-        "role": "COO",
-        "agent_type": "sub",
-        "parent_agent_id": "ceo",
-        "description": "承接 CEO 主 agent 的运营调度与状态推进。",
-        "capabilities": ["task_assess", "task_transition", "memory_sync"]
-    },
-    {
-        "agent_id": "strategist",
-        "name": "策略官苏然",
-        "role": "策略官",
-        "agent_type": "sub",
-        "parent_agent_id": "ceo",
-        "description": "负责方案设计、关键假设与风险收敛。",
-        "capabilities": ["task_progress", "decision_create", "risk_assess"]
-    },
-    {
-        "agent_id": "product",
-        "name": "产品周雨桐",
-        "role": "产品",
-        "agent_type": "sub",
-        "parent_agent_id": "ceo",
-        "description": "拆解功能范围与用户故事。",
-        "capabilities": ["task_progress"]
-    },
-    {
-        "agent_id": "marketing",
-        "name": "市场陈志远",
-        "role": "市场",
-        "agent_type": "sub",
-        "parent_agent_id": "ceo",
-        "description": "验证获客路径与测试方案。",
-        "capabilities": ["task_progress", "risk_assess"]
-    },
-    {
-        "agent_id": "tech",
-        "name": "技术李峥",
-        "role": "技术",
-        "agent_type": "sub",
-        "parent_agent_id": "ceo",
-        "description": "负责技术实现、约束分析与交付判断。",
-        "capabilities": ["task_progress", "risk_assess"]
-    },
-    {
-        "agent_id": "finance",
-        "name": "财务张晓燕",
-        "role": "财务",
-        "agent_type": "sub",
-        "parent_agent_id": "ceo",
-        "description": "测算成本、收益与盈亏平衡点。",
-        "capabilities": ["task_progress", "risk_assess"]
-    },
-    {
-        "agent_id": "brand",
-        "name": "品牌林可欣",
-        "role": "品牌",
-        "agent_type": "sub",
-        "parent_agent_id": "ceo",
-        "description": "统一叙事、表达与品牌感知。",
-        "capabilities": ["task_progress"]
-    },
-    {
-        "agent_id": "legal",
-        "name": "法务王建国",
-        "role": "法务",
-        "agent_type": "sub",
-        "parent_agent_id": "ceo",
-        "description": "识别合规风险并提出规避方案。",
-        "capabilities": ["task_progress", "risk_assess"]
-    }
-]
-
-AGENT_ALIASES = {
-    "ceo": ["ceo", "CEO", "ceo主agent", "ceo主代理"],
-    "coo": ["coo", "魏明远", "coo魏明远"],
-    "strategist": ["策略官", "苏然", "策略官苏然"],
-    "product": ["产品", "周雨桐", "产品周雨桐"],
-    "marketing": ["市场", "陈志远", "市场陈志远"],
-    "tech": ["技术", "李峥", "技术李峥"],
-    "finance": ["财务", "张晓燕", "财务张晓燕"],
-    "brand": ["品牌", "林可欣", "品牌林可欣"],
-    "legal": ["法务", "王建国", "法务王建国"]
-}
-
 
 def _default_model_config() -> Dict:
     return {
@@ -179,15 +84,64 @@ def _assignment_storage():
 
 
 def _agent_lock(agent_id: str):
-    return operation_lock(get_config().get_path("agents_dir") / f".{agent_id}.lock")
+    return operation_lock(get_config().get_path("agents_dir") / f".{get_agent_pack()}.{agent_id}.lock")
+
+
+def get_agent_pack() -> str:
+    return resolve_pack(get_config().get("orchestration.agent_pack", "default"))
+
+
+def _load_default_agents(strict: bool = True, pack: Optional[str] = None) -> List[Dict]:
+    selected_pack = resolve_pack(pack or get_agent_pack())
+    try:
+        return load_agent_catalog(strict=strict, pack=selected_pack)
+    except ValueError as exc:
+        emit_error(f"agent catalog 无效 (pack={selected_pack}): {exc}")
+
+
+def _agent_aliases(strict: bool = True, pack: Optional[str] = None) -> Dict[str, List[str]]:
+    selected_pack = resolve_pack(pack or get_agent_pack())
+    return {
+        agent["agent_id"]: list(agent.get("aliases", []))
+        for agent in _load_default_agents(strict=strict, pack=selected_pack)
+    }
+
+
+def _agent_storage_key(agent_id: str, pack: Optional[str] = None) -> str:
+    return f"{resolve_pack(pack or get_agent_pack())}/{agent_id}"
+
+
+def _load_stored_agent_record(agent_id: str, pack: Optional[str] = None) -> Optional[Dict]:
+    selected_pack = resolve_pack(pack or get_agent_pack())
+    storage = _agent_storage()
+    namespaced_key = _agent_storage_key(agent_id, selected_pack)
+    stored = storage.load(namespaced_key)
+    if stored:
+        return stored
+
+    if selected_pack == "default":
+        legacy = storage.load(agent_id)
+        if legacy:
+            legacy["catalog_pack"] = "default"
+            storage.save(namespaced_key, legacy)
+            storage.delete(agent_id)
+            return legacy
+    return None
 
 
 def _builtin_agent_map() -> Dict[str, Dict]:
-    return {agent["agent_id"]: agent for agent in DEFAULT_AGENTS}
+    return {agent["agent_id"]: agent for agent in _load_default_agents(strict=True)}
 
 
 def get_main_agent_id() -> str:
-    return get_config().get("orchestration.main_agent_id", "ceo")
+    configured = str(get_config().get("orchestration.main_agent_id", "") or "").strip()
+    catalog = _load_default_agents(strict=True)
+    if configured and any(agent["agent_id"] == configured and agent["agent_type"] == "main" for agent in catalog):
+        return configured
+    main_agent = next((agent["agent_id"] for agent in catalog if agent["agent_type"] == "main"), "ceo")
+    if configured != main_agent:
+        get_config().set("orchestration.main_agent_id", main_agent)
+    return main_agent
 
 
 def _normalize_model_config(model_config: Optional[Dict]) -> Dict:
@@ -343,6 +297,7 @@ def register_custom_model(
 def _new_agent_record(template: Dict) -> Dict:
     return {
         "agent_id": template["agent_id"],
+        "catalog_pack": template.get("pack", get_agent_pack()),
         "name": template["name"],
         "role": template["role"],
         "agent_type": template.get("agent_type", "sub"),
@@ -389,7 +344,11 @@ def _resolve_model_config(agent: Dict) -> Dict:
 def _persist_agent(agent: Dict) -> None:
     payload = copy.deepcopy(agent)
     payload.pop("effective_model", None)
-    _agent_storage().save(agent["agent_id"], payload)
+    payload["catalog_pack"] = resolve_pack(payload.get("catalog_pack", get_agent_pack()))
+    storage = _agent_storage()
+    storage.save(_agent_storage_key(agent["agent_id"], payload["catalog_pack"]), payload)
+    if payload["catalog_pack"] == "default" and storage.exists(agent["agent_id"]):
+        storage.delete(agent["agent_id"])
 
 
 def _append_history(agent: Dict, event: Dict) -> None:
@@ -402,6 +361,7 @@ def _merge_agent(template: Dict, stored: Optional[Dict]) -> Dict:
     agent = _new_agent_record(template)
     if stored:
         agent.update(stored)
+    agent["catalog_pack"] = template.get("pack", get_agent_pack())
     agent["agent_type"] = agent.get("agent_type", template.get("agent_type", "sub"))
     agent["parent_agent_id"] = agent.get("parent_agent_id", template.get("parent_agent_id"))
     agent["capabilities"] = stored.get("capabilities", agent["capabilities"]) if stored else agent["capabilities"]
@@ -419,8 +379,8 @@ def materialize_agent(agent_id: str) -> Optional[Dict]:
 
 
 def load_agent(agent_id: str) -> Optional[Dict]:
-    storage = _agent_storage()
-    stored = storage.load(agent_id)
+    current_pack = get_agent_pack()
+    stored = _load_stored_agent_record(agent_id, current_pack)
     builtin = _builtin_agent_map().get(agent_id)
 
     if builtin:
@@ -428,6 +388,7 @@ def load_agent(agent_id: str) -> Optional[Dict]:
     if stored:
         template = {
             "agent_id": agent_id,
+            "pack": current_pack,
             "name": stored.get("name", agent_id),
             "role": stored.get("role", "custom"),
             "agent_type": stored.get("agent_type", "sub"),
@@ -441,9 +402,17 @@ def load_agent(agent_id: str) -> Optional[Dict]:
 
 def list_agents() -> List[Dict]:
     storage = _agent_storage()
-    stored_keys = set(storage.list("*"))
-    builtin_ids = [agent["agent_id"] for agent in DEFAULT_AGENTS]
-    ordered_ids = builtin_ids + sorted(stored_keys - set(builtin_ids))
+    current_pack = get_agent_pack()
+    builtin_ids = [agent["agent_id"] for agent in _load_default_agents(strict=True, pack=current_pack)]
+    stored_ids = {key.split("/", 1)[1] for key in storage.list(f"{current_pack}/*")}
+
+    if current_pack == "default":
+        for key in storage.list("*"):
+            if "/" in key:
+                continue
+            stored_ids.add(key)
+
+    ordered_ids = builtin_ids + sorted(stored_ids - set(builtin_ids))
 
     agents = []
     for agent_id in ordered_ids:
@@ -463,19 +432,26 @@ def list_agents() -> List[Dict]:
     return agents
 
 
-def initialize_agents():
+def initialize_agents() -> Dict:
     if not require_writable("初始化 agent 注册表"):
-        return
+        return {}
 
-    storage = _agent_storage()
+    current_pack = get_agent_pack()
     created = []
-    for builtin in DEFAULT_AGENTS:
-        if not storage.exists(builtin["agent_id"]):
-            storage.save(builtin["agent_id"], _new_agent_record(builtin))
+    catalog = _load_default_agents(strict=True, pack=current_pack)
+    for builtin in catalog:
+        if not _load_stored_agent_record(builtin["agent_id"], current_pack):
+            _persist_agent(_new_agent_record(builtin))
             created.append(builtin["agent_id"])
 
-    log_operation("init_registry", "agents", "agent", {"created": created})
-    emit_json(True, created=created, total=len(DEFAULT_AGENTS), message="主从 agent 注册表初始化完成")
+    result = {
+        "pack": current_pack,
+        "created": created,
+        "total": len(catalog),
+        "main_agent_id": next((agent["agent_id"] for agent in catalog if agent["agent_type"] == "main"), None)
+    }
+    log_operation("init_registry", "agents", "agent", result)
+    return result
 
 
 def _enrich_assignment(assignment: Optional[Dict]) -> Optional[Dict]:
@@ -497,9 +473,13 @@ def list_assignments(
 ) -> List[Dict]:
     assignments = []
     storage = _assignment_storage()
+    current_pack = get_agent_pack()
     for key in storage.list("*"):
         assignment = load_assignment(key)
         if not assignment:
+            continue
+        assignment_pack = resolve_pack(assignment.get("catalog_pack", "default"))
+        if assignment_pack != current_pack:
             continue
         if from_agent_id and assignment.get("from_agent_id") != from_agent_id:
             continue
@@ -662,6 +642,7 @@ def dispatch_assignment(
     assignment_id = generate_assignment_id()
     assignment = {
         "assignment_id": assignment_id,
+        "catalog_pack": get_agent_pack(),
         "title": title,
         "brief": brief,
         "task_id": task_id,
@@ -734,12 +715,13 @@ def find_agent_id_by_actor(actor: Optional[str]) -> Optional[str]:
         return None
 
     actor_text = actor.strip().lower()
+    aliases = _agent_aliases(strict=True)
     for agent in list_agents():
         candidates = [
             agent["agent_id"],
             agent.get("name", ""),
             agent.get("role", "")
-        ] + AGENT_ALIASES.get(agent["agent_id"], [])
+        ] + aliases.get(agent["agent_id"], [])
         for candidate in candidates:
             candidate_text = str(candidate).strip().lower()
             if candidate_text and (actor_text == candidate_text or candidate_text in actor_text):
@@ -851,6 +833,32 @@ def set_default_model(
     return model_config
 
 
+def switch_agent_pack(pack: str) -> Dict:
+    available_packs = list_agent_packs()
+    selected_pack = resolve_pack(pack)
+    if selected_pack not in available_packs:
+        emit_error(f"角色 pack `{selected_pack}` 不存在，可用 pack: {', '.join(available_packs) or '无'}")
+
+    catalog = _load_default_agents(strict=True, pack=selected_pack)
+    main_agent_id = next((agent["agent_id"] for agent in catalog if agent["agent_type"] == "main"), None)
+
+    config = get_config()
+    config.set("orchestration.agent_pack", selected_pack)
+    if main_agent_id:
+        config.set("orchestration.main_agent_id", main_agent_id)
+
+    init_result = initialize_agents()
+    result = {
+        "pack": selected_pack,
+        "available_packs": available_packs,
+        "main_agent_id": main_agent_id,
+        "created": init_result.get("created", []),
+        "total": init_result.get("total", len(catalog))
+    }
+    log_operation("switch_pack", selected_pack, "agent", result)
+    return result
+
+
 def emit_agent(agent_id: str):
     agent = load_agent(agent_id)
     if not agent:
@@ -860,7 +868,11 @@ def emit_agent(agent_id: str):
 
 def emit_agents():
     agents = list_agents()
-    emit_json(True, count=len(agents), agents=agents, main_agent_id=get_main_agent_id())
+    emit_json(True, count=len(agents), agents=agents, main_agent_id=get_main_agent_id(), pack=get_agent_pack())
+
+
+def emit_packs():
+    emit_json(True, packs=list_agent_packs(), current_pack=get_agent_pack())
 
 
 def emit_assignment(assignment_id: str):
@@ -900,6 +912,10 @@ def main():
 
     subparsers.add_parser("init", help="初始化默认主从 agent 注册表")
     subparsers.add_parser("list", help="列出所有 agent")
+    subparsers.add_parser("list-packs", help="列出可用角色 pack")
+
+    switch_pack_parser = subparsers.add_parser("switch-pack", help="切换当前角色 pack")
+    switch_pack_parser.add_argument("--pack", required=True, help="目标角色 pack")
 
     get_parser = subparsers.add_parser("get", help="查看 agent 详情")
     get_parser.add_argument("--agent-id", required=True, help="agent ID")
@@ -960,9 +976,15 @@ def main():
     args = parser.parse_args()
 
     if args.command == "init":
-        initialize_agents()
+        result = initialize_agents()
+        emit_json(True, **result, message="主从 agent 注册表初始化完成")
     elif args.command == "list":
         emit_agents()
+    elif args.command == "list-packs":
+        emit_packs()
+    elif args.command == "switch-pack":
+        result = switch_agent_pack(args.pack)
+        emit_json(True, **result, message=f"已切换到角色 pack: {result['pack']}")
     elif args.command == "get":
         emit_agent(args.agent_id)
     elif args.command == "set-status":

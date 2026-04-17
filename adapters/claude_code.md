@@ -5,9 +5,17 @@
 ```bash
 cd opc-team
 ./install.sh -p claude_code
+# 或指定角色 pack
+./install.sh -p claude_code -k enterprise
 ```
 
 安装脚本会自动将 skill 复制到 `~/.claude/skills/opc-team/`。
+同时会在 `integrations/claude_code/` 下生成：
+
+- `AGENTS.md`
+- `ROUTER.md`
+
+如果使用自定义 pack，则输出路径会变成 `integrations/<pack>/claude_code/`。
 
 ---
 
@@ -80,6 +88,10 @@ A: 日志存储在 `data/logs/{date}.log`，可以用 Read 工具查看。
 ### Q: 可以在多个项目中使用吗？
 
 A: 可以。每个项目有独立的 `data/` 目录，互不干扰。
+
+### Q: `integrations/claude_code/` 里的文件有什么用？
+
+A: 这些文件是从标准化角色目录导出的 Claude Code 参考资料，适合在你需要显式查看角色路由、补充 system context 或做二次封装时使用。
 
 ---
 

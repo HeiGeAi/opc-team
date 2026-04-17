@@ -19,9 +19,11 @@ from pathlib import Path
 from typing import Dict, List, Optional
 from urllib.parse import urlparse
 
+from agent_catalog import list_agent_packs
 from agent_ops import (
     dispatch_assignment,
     get_default_model_config,
+    get_agent_pack,
     get_main_agent_id,
     list_agents,
     list_assignments,
@@ -227,6 +229,10 @@ def build_summary() -> Dict:
         "defaults": {
             "main_agent_id": main_agent_id,
             "default_model": get_default_model_config()
+        },
+        "catalog": {
+            "current_pack": get_agent_pack(),
+            "available_packs": list_agent_packs()
         },
         "model_catalog": {
             "custom_models": custom_models,

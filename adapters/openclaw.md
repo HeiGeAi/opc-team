@@ -5,17 +5,30 @@
 ```bash
 cd opc-team
 ./install.sh -p openclaw
+# 或指定角色 pack
+./install.sh -p openclaw -k enterprise
 ```
 
 安装时需要指定 agent ID（例如：default）。
 
 安装脚本会自动将 skill 复制到 `~/.openclaw/workspace-{agent}/skills/opc-team/`。
+同时会在 `integrations/openclaw/` 下生成平台参考文件。
+如果使用自定义 pack，则输出路径会变成 `integrations/<pack>/openclaw/`。
+
+生成文件包括：
+
+- `SOUL.md`
+- `IDENTITY.md`
+- `AGENTS.md`
+- `ROUTING.md`
 
 ---
 
 ## 使用方式
 
 OpenClaw 会自动加载 skills 目录下的所有 SKILL.md 文件。
+
+如果你想查看角色映射或把 OPC 进一步嵌入自己的 OpenClaw 组织结构，可以直接参考 `integrations/openclaw/` 下的导出文件。
 
 直接下达指令即可：
 
@@ -95,6 +108,10 @@ A: 可以。每个 agent 有独立的 workspace，互不干扰。
 ### Q: 如何与其他 skills 协作？
 
 A: 在 SKILL.md 中可以引用其他 skills，OpenClaw 会自动协调。
+
+### Q: `SOUL.md / IDENTITY.md / AGENTS.md` 是做什么的？
+
+A: 这是 OPC 角色目录自动导出的 OpenClaw 适配文件，方便你把角色层嵌入已有 OpenClaw 组织结构，而不必手写第二份角色文档。
 
 ---
 

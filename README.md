@@ -11,7 +11,7 @@
 
 **OPC Team** 是一个跨平台的 Agent 协作框架，目标不是再造一个角色扮演 prompt，而是给 AI 执行过程加上明确的工程化约束：任务状态机、决策履历、风险量化、三级记忆，以及一组可审计的 CLI 工具。它适合跑在 **Claude Code / OpenClaw / Cursor / Windsurf / 通用 CLI / API 工作流** 上，让 Agent 的执行过程从“看起来会做”变成“真的可控、可回放、可治理”。
 
-[Quick Start](#-quick-start) · [Platform Matrix](#-supported-platforms) · [Deployment Guide](./DEPLOYMENT.md) · [Skill Manual](./SKILL.md) · [API Schema](./adapters/api.json)
+[Quick Start](#-quick-start) · [Platform Matrix](#-supported-platforms) · [Deployment Guide](./DEPLOYMENT.md) · [Agent Catalog](./CATALOG.md) · [Skill Manual](./SKILL.md) · [API Schema](./adapters/api.json)
 
 ---
 
@@ -39,6 +39,8 @@
 - **Risk Score**：把风险从“感觉有点危险”变成可量化的等级和应对预案。
 - **Memory Sync**：把即时记忆、短期摘要、长期经验同步到统一存储。
 - **Config + Storage**：支持平台适配、路径配置、文件存储和 SQLite 存储。
+- **Agent Catalog**：把内置角色定义放到 `agents/*.md` 或 `agents/<pack>/*.md`，用统一 schema + lint 管理角色层。
+- **Role Packs**：支持把默认角色集复制成新 pack，并在运行时切换不同角色包。
 - **Main/Sub Orchestration**：内置 `CEO主Agent -> sub-agent` 的主从编排结构，支持主 agent 派发子任务。
 - **Agent Board**：用本地看板实时查看主 agent、sub-agent、派发任务、风险密度和最近事件。
 - **Model Routing**：允许主 agent 和不同 sub-agent 指定不同 API provider / model；未配置时默认继承宿主平台模型。
@@ -46,6 +48,8 @@
 ## 新增能力：主从编排 + 可视化看板 + 多模型路由
 
 - `tools/agent_ops.py` 维护主 agent / sub-agent 注册表、工作状态、派发任务和模型配置。
+- `tools/agent_catalog.py` 负责校验角色目录、输出 manifest、发现/复制 role pack，并让角色层与编排层解耦。
+- `tools/agent_convert.py` 负责把角色目录导出成 OpenClaw / Claude Code / Cursor / Windsurf / API 的集成文件。
 - `tools/dashboard.py serve` 启动集成看板，浏览器直接派发 sub-agent、调整状态、切换模型路由。
 - agent 模型配置支持三种来源：
   - `default`：继承全局默认路由
@@ -65,6 +69,15 @@
 | 我 + AI 适合什么知识付费产品 | 模板库 + 清单 + 7 天短周期陪跑 | 避免大课和重社群；围绕明确结果交付，而不是堆知识点 |
 
 这类输出会沉淀到 `data/tasks/`、`data/decisions/`、`data/risks/`、`data/agents/`、`data/assignments/` 和 `data/MEMORY.md`，用于回放过程、复盘假设、追踪主从 agent 分工与后续执行。
+
+## 角色目录：把角色层从编排代码里拆出来
+
+- 默认角色定义位于 `agents/*.md`，额外角色包可以放在 `agents/<pack>/*.md`。
+- `tools/agent_ops.py` 启动时会从当前 pack 加载主从拓扑，而不是再把角色写死在 Python 常量里。
+- `tools/agent_catalog.py lint` 可以校验 schema、章节完整性和父子关系。
+- `tools/agent_catalog.py scaffold-pack` 可以从默认角色复制出一个新 pack，再按行业或企业场景定制。
+- `tools/agent_ops.py switch-pack` 可以直接切换当前运行 pack。
+- 这使得你后续扩角色、做行业包、做平台适配时，不必直接修改编排代码。
 
 ---
 
@@ -138,13 +151,23 @@ python3 tools/dashboard.py serve
 opc-team/
 ├── SKILL.md                    # 通用 AI 执行手册
 ├── README.md                   # 本文件
+├── CATALOG.md                  # 角色目录说明
 ├── DEPLOYMENT.md               # 多平台部署指南
 ├── PLATFORM_ANALYSIS.md        # 平台兼容性分析
 ├── config.json                 # 配置文件
 ├── install.sh                  # 自动安装脚本
+├── agents/                     # 标准化角色定义（默认 pack + 自定义 pack）
+│   ├── ceo.md                  # default pack：主控编排角色
+│   ├── coo.md                  # default pack：运营调度角色
+│   ├── ...                     # default pack：其他 sub-agent
+│   └── <pack>/                 # 可选：行业/企业角色包
+│       ├── ceo.md
+│       └── ...
 ├── dashboard/                  # 本地可视化看板
 │   └── index.html              # 单文件看板页面
 ├── tools/                      # CLI 工具层
+│   ├── agent_catalog.py        # 角色目录 lint / manifest
+│   ├── agent_convert.py        # 平台角色转换器
 │   ├── task_flow.py            # 任务状态机
 │   ├── decision_log.py         # 决策履历管理
 │   ├── risk_score.py           # 风险量化评分
@@ -208,6 +231,52 @@ python3 tools/task_flow.py progress --task-id T001 --message "进展描述" --pr
 # 查询状态
 python3 tools/task_flow.py status --task-id T001
 ```
+
+### agent_catalog.py - 角色目录
+
+```bash
+# 查看可用角色 pack
+python3 tools/agent_catalog.py list-packs
+
+# 校验角色 schema 与章节
+python3 tools/agent_catalog.py lint
+
+# 校验某个自定义 pack
+python3 tools/agent_catalog.py lint --pack enterprise
+
+# 查看当前内置角色目录
+python3 tools/agent_catalog.py list
+
+# 导出 Markdown 目录清单
+python3 tools/agent_catalog.py manifest --format markdown
+
+# 从 default 复制一个新 pack
+python3 tools/agent_catalog.py scaffold-pack --from-pack default --to-pack enterprise
+```
+
+### agent_convert.py - 平台转换器
+
+```bash
+# 查看支持的平台
+python3 tools/agent_convert.py list-tools
+
+# 查看支持导出的角色 pack
+python3 tools/agent_convert.py list-packs
+
+# 导出 OpenClaw 集成文件
+python3 tools/agent_convert.py export --tool openclaw --out output/integrations
+
+# 导出 API 集成文件
+python3 tools/agent_convert.py export --tool api --out output/integrations
+
+# 导出某个自定义 pack 的所有平台文件
+python3 tools/agent_convert.py export --tool all --pack enterprise --out output/integrations
+
+# 一次性导出所有平台集成文件
+python3 tools/agent_convert.py export --tool all --out output/integrations
+```
+
+安装脚本在 `claude_code / openclaw / cursor / windsurf / generic / api` 模式下都会自动生成对应平台的集成文件。默认 pack 会输出到目标 bundle 的 `integrations/<tool>/`，或仓库根下的 `output/integrations/<tool>/`；自定义 pack 则对应输出到 `integrations/<pack>/<tool>/` 或 `output/integrations/<pack>/<tool>/`。
 
 ### decision_log.py - 决策履历
 
@@ -280,6 +349,12 @@ python3 tools/memory_sync.py sync --task-id T001
 ```bash
 # 初始化默认主从 agent 注册表
 python3 tools/agent_ops.py init
+
+# 查看可用角色 pack
+python3 tools/agent_ops.py list-packs
+
+# 切换到某个角色 pack
+python3 tools/agent_ops.py switch-pack --pack enterprise
 
 # 查看所有 agent
 python3 tools/agent_ops.py list

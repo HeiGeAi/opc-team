@@ -52,7 +52,15 @@ class Config:
             return self._create_default_config()
 
         with open(self.config_file, "r", encoding="utf-8") as f:
-            return json.load(f)
+            raw_text = f.read().strip()
+
+        if not raw_text:
+            return self._create_default_config()
+
+        try:
+            return json.loads(raw_text)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"配置文件不是合法 JSON: {self.config_file}") from exc
 
     def _create_default_config(self) -> Dict:
         """创建默认配置"""
@@ -108,7 +116,8 @@ class Config:
                 "refresh_seconds": 8
             },
             "orchestration": {
-                "main_agent_id": "ceo"
+                "main_agent_id": "ceo",
+                "agent_pack": "default"
             }
         }
 

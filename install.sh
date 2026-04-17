@@ -55,37 +55,61 @@ Path(dst).write_text(text, encoding="utf-8")
 PY
 }
 
+copy_agent_catalog() {
+    local source_dir="$1"
+    local target_dir="$2"
+    mkdir -p "$target_dir"
+    cp -R "$source_dir"/. "$target_dir/"
+}
+
 sync_project_bundle() {
     local bundle_dir="$1"
     local bundle_platform="$2"
+    local bundle_pack="${3:-default}"
 
     mkdir -p "$bundle_dir/tools"
     mkdir -p "$bundle_dir/dashboard"
     mkdir -p "$bundle_dir/adapters"
+    mkdir -p "$bundle_dir/agents"
     cp "$SCRIPT_DIR"/tools/*.py "$bundle_dir/tools/"
     cp "$SCRIPT_DIR"/dashboard/* "$bundle_dir/dashboard/"
     cp "$SCRIPT_DIR"/adapters/*.json "$bundle_dir/adapters/"
+    copy_agent_catalog "$SCRIPT_DIR/agents" "$bundle_dir/agents"
     cp "$SCRIPT_DIR/config.json" "$bundle_dir/"
     cp "$SCRIPT_DIR/README.md" "$bundle_dir/"
+    cp "$SCRIPT_DIR/CATALOG.md" "$bundle_dir/"
     cp "$SCRIPT_DIR/install.sh" "$bundle_dir/"
     cp "$SCRIPT_DIR/DEPLOYMENT.md" "$bundle_dir/"
     (
         cd "$bundle_dir"
         python3 tools/config.py init --platform "$bundle_platform" >/dev/null
         python3 tools/memory_sync.py init >/dev/null
-        python3 tools/agent_ops.py init >/dev/null
+        if [ "$bundle_pack" = "default" ]; then
+            python3 tools/agent_ops.py init >/dev/null
+        else
+            python3 tools/agent_ops.py switch-pack --pack "$bundle_pack" >/dev/null
+        fi
+    )
+    (
+        cd "$bundle_dir"
+        python3 tools/agent_convert.py export --tool "$bundle_platform" --pack "$bundle_pack" --out integrations >/dev/null
     )
 }
 
 init_bundle_config() {
     local bundle_dir="$1"
     local bundle_platform="$2"
+    local bundle_pack="${3:-default}"
 
     (
         cd "$bundle_dir"
         python3 tools/config.py init --platform "$bundle_platform" >/dev/null
         python3 tools/memory_sync.py init >/dev/null
-        python3 tools/agent_ops.py init >/dev/null
+        if [ "$bundle_pack" = "default" ]; then
+            python3 tools/agent_ops.py init >/dev/null
+        else
+            python3 tools/agent_ops.py switch-pack --pack "$bundle_pack" >/dev/null
+        fi
     )
 }
 
@@ -203,7 +227,11 @@ init_memory() {
 init_agents() {
     echo_info "初始化 agent 注册表..."
 
-    run_repo_tool agent_ops init >/dev/null
+    if [ -n "$AGENT_PACK" ] && [ "$AGENT_PACK" != "default" ]; then
+        run_repo_tool agent_ops switch-pack --pack "$AGENT_PACK" >/dev/null
+    else
+        run_repo_tool agent_ops init >/dev/null
+    fi
 
     echo_success "agent 注册表初始化完成"
 }
@@ -248,11 +276,18 @@ install_for_platform() {
             mkdir -p "$SKILL_DIR/tools"
             mkdir -p "$SKILL_DIR/dashboard"
             mkdir -p "$SKILL_DIR/adapters"
+            mkdir -p "$SKILL_DIR/agents"
             cp "$SCRIPT_DIR"/tools/*.py "$SKILL_DIR/tools/"
             cp "$SCRIPT_DIR"/dashboard/* "$SKILL_DIR/dashboard/"
             cp "$SCRIPT_DIR"/adapters/*.json "$SKILL_DIR/adapters/"
+            copy_agent_catalog "$SCRIPT_DIR/agents" "$SKILL_DIR/agents"
             cp "$SCRIPT_DIR/config.json" "$SKILL_DIR/"
-            init_bundle_config "$SKILL_DIR" "claude_code"
+            cp "$SCRIPT_DIR/CATALOG.md" "$SKILL_DIR/"
+            init_bundle_config "$SKILL_DIR" "claude_code" "$AGENT_PACK"
+            (
+                cd "$SKILL_DIR"
+                python3 tools/agent_convert.py export --tool claude_code --pack "$AGENT_PACK" --out integrations >/dev/null
+            )
             write_adapted_skill \
                 "$SKILL_DIR/SKILL.md" \
                 "$(printf '%q' "$SKILL_DIR/config.json")" \
@@ -280,11 +315,18 @@ install_for_platform() {
             mkdir -p "$SKILL_DIR/tools"
             mkdir -p "$SKILL_DIR/dashboard"
             mkdir -p "$SKILL_DIR/adapters"
+            mkdir -p "$SKILL_DIR/agents"
             cp "$SCRIPT_DIR"/tools/*.py "$SKILL_DIR/tools/"
             cp "$SCRIPT_DIR"/dashboard/* "$SKILL_DIR/dashboard/"
             cp "$SCRIPT_DIR"/adapters/*.json "$SKILL_DIR/adapters/"
+            copy_agent_catalog "$SCRIPT_DIR/agents" "$SKILL_DIR/agents"
             cp "$SCRIPT_DIR/config.json" "$SKILL_DIR/"
-            init_bundle_config "$SKILL_DIR" "openclaw"
+            cp "$SCRIPT_DIR/CATALOG.md" "$SKILL_DIR/"
+            init_bundle_config "$SKILL_DIR" "openclaw" "$AGENT_PACK"
+            (
+                cd "$SKILL_DIR"
+                python3 tools/agent_convert.py export --tool openclaw --pack "$AGENT_PACK" --out integrations >/dev/null
+            )
             write_adapted_skill \
                 "$SKILL_DIR/SKILL.md" \
                 "$(printf '%q' "$SKILL_DIR/config.json")" \
@@ -296,13 +338,17 @@ install_for_platform() {
         api)
             echo_info "为 API 模式安装..."
             echo_info "API 模式需要通过环境变量配置"
+            (
+                cd "$SCRIPT_DIR"
+                python3 tools/agent_convert.py export --tool api --pack "$AGENT_PACK" --out output/integrations >/dev/null
+            )
             echo_info "设置 OPC_API_KEY 和 OPC_API_URL 后即可使用"
             echo_success "API 模式安装完成"
             ;;
 
         cursor)
             echo_info "为 Cursor 安装..."
-            sync_project_bundle "$CALLER_DIR/opc-team" "cursor"
+            sync_project_bundle "$CALLER_DIR/opc-team" "cursor" "$AGENT_PACK"
             if [ -f "$CALLER_DIR/.cursorrules" ]; then
                 echo_warning ".cursorrules 已存在，将追加内容"
                 echo "" >> "$CALLER_DIR/.cursorrules"
@@ -317,7 +363,7 @@ install_for_platform() {
 
         windsurf)
             echo_info "为 Windsurf 安装..."
-            sync_project_bundle "$CALLER_DIR/opc-team" "windsurf"
+            sync_project_bundle "$CALLER_DIR/opc-team" "windsurf" "$AGENT_PACK"
             if [ -f "$CALLER_DIR/.windsurfrules" ]; then
                 echo_warning ".windsurfrules 已存在，将追加内容"
                 echo "" >> "$CALLER_DIR/.windsurfrules"
@@ -331,6 +377,10 @@ install_for_platform() {
 
         generic)
             echo_info "通用安装模式"
+            (
+                cd "$SCRIPT_DIR"
+                python3 tools/agent_convert.py export --tool generic --pack "$AGENT_PACK" --out output/integrations >/dev/null
+            )
             echo_success "工具已就绪，可直接使用 CLI 命令"
             echo_info "示例: python3 \"$SCRIPT_DIR/tools/task_flow.py\" create --title '测试任务' --ceo-input '测试'"
             ;;
@@ -370,6 +420,7 @@ OPC Team 安装脚本
     -h, --help              显示帮助信息
     -p, --platform PLATFORM 指定平台 (claude_code/openclaw/api/cursor/windsurf/generic)
     -a, --agent-id ID       OpenClaw agent ID（默认: default）
+    -k, --pack PACK         指定角色 pack（默认: default）
     -t, --test              安装后运行测试
     --skip-env              跳过环境变量设置
     --skip-deps             跳过依赖安装
@@ -379,6 +430,7 @@ OPC Team 安装脚本
     ./install.sh -p claude_code          # 为 Claude Code 安装
     ./install.sh -p openclaw -a default   # 为 OpenClaw 安装（指定 agent）
     ./install.sh -p api                   # 为 API 模式安装
+    ./install.sh -k enterprise            # 使用 enterprise pack 安装
     ./install.sh -t                      # 安装并测试
 
 EOF
@@ -394,6 +446,7 @@ main() {
     # 解析参数
     PLATFORM=""
     AGENT_ID=""
+    AGENT_PACK="default"
     RUN_TEST=false
     SKIP_ENV=false
     SKIP_DEPS=false
@@ -410,6 +463,10 @@ main() {
                 ;;
             -a|--agent-id)
                 AGENT_ID="$2"
+                shift 2
+                ;;
+            -k|--pack)
+                AGENT_PACK="$2"
                 shift 2
                 ;;
             -t|--test)

@@ -231,10 +231,17 @@ python3 tools/dashboard.py serve
 **安装步骤**：
 ```bash
 ./install.sh -p api
+# 或指定角色 pack
+./install.sh -p api -k enterprise
 ```
 
 **Function Schema**：
 参考 `adapters/api.json`，包含所有 CLI 工具的 function 定义。
+
+**角色导出文件**：
+- default pack：`output/integrations/api/agent-catalog.json`
+- 自定义 pack：`output/integrations/<pack>/api/agent-catalog.json`
+- 同目录还会生成 `routing-map.json` 和 `SYSTEM_PROMPT.md`
 
 **示例（OpenAI Function Calling）**：
 ```python

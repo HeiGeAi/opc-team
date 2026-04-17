@@ -7,9 +7,13 @@ cd your-project
 cp /path/to/opc-team/SKILL.md .cursorrules
 # 或者
 /path/to/opc-team/install.sh -p cursor
+# 或者指定角色 pack
+/path/to/opc-team/install.sh -p cursor -k enterprise
 ```
 
 安装脚本会自动将 SKILL.md 追加到 `.cursorrules` 文件。
+并且会在 `opc-team/integrations/cursor/` 下生成 `opc-team-catalog.mdc`，作为角色目录的 Cursor 规则版本。
+如果使用自定义 pack，则输出路径会变成 `opc-team/integrations/<pack>/cursor/`。
 
 ---
 
@@ -122,6 +126,10 @@ A: 检查是否启用了 "Auto-approve safe commands"，或者手动批准执行
 ### Q: 如何查看执行结果？
 
 A: Cursor 会在 Composer 中显示命令输出。你也可以查看 `opc-team/data/logs/` 日志。
+
+### Q: `opc-team-catalog.mdc` 有什么用？
+
+A: 它是从 `agents/*.md` 自动生成的 Cursor 规则文件，适合放进 `.cursor/rules/` 或作为团队共享角色路由参考，而不是手工维护另一份角色说明。
 
 ### Q: 可以在 VS Code 中使用吗？
 
