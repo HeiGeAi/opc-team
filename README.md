@@ -7,9 +7,9 @@
 [![Platforms](https://img.shields.io/badge/platform-Claude%20Code%20%7C%20OpenClaw%20%7C%20Cursor%20%7C%20Windsurf%20%7C%20API-0F766E.svg)](./DEPLOYMENT.md)
 [![License](https://img.shields.io/badge/license-MIT-059669.svg)](./LICENSE)
 
-> 把“靠 prompt 演戏”的 AI Agent，升级成“可调度、可追踪、可复盘”的执行系统。
+> 把“固定角色表”的 AI Agent，升级成“能按任务强度自动扩缩容”的执行系统。
 
-**OPC Team** 是一个跨平台的 Agent 协作框架，目标不是再造一个角色扮演 prompt，而是给 AI 执行过程加上明确的工程化约束：任务状态机、决策履历、风险量化、三级记忆，以及一组可审计的 CLI 工具。它适合跑在 **Claude Code / OpenClaw / Cursor / Windsurf / 通用 CLI / API 工作流** 上，让 Agent 的执行过程从“看起来会做”变成“真的可控、可回放、可治理”。
+**OPC Team** 是一个跨平台的 Agent 协作框架，目标不是再造一个角色扮演 prompt，而是给 AI 执行过程加上明确的工程化约束：任务状态机、决策履历、风险量化、三级记忆，以及一组可审计的 CLI 工具。它适合跑在 **Claude Code / OpenClaw / Cursor / Windsurf / 通用 CLI / API 工作流** 上，让 Agent 的执行过程从“看起来会做”变成“真的可控、可回放、可治理”。当前默认编排策略已经升级为 `3 / 8 / 20` 三档弹性编组，也就是日常任务保留常驻小队，重要任务自动扩到核心队列，复杂任务再拉满全部角色协同。
 
 [Quick Start](#-quick-start) · [Platform Matrix](#-supported-platforms) · [Deployment Guide](./DEPLOYMENT.md) · [Agent Catalog](./CATALOG.md) · [Skill Manual](./SKILL.md) · [API Schema](./adapters/api.json)
 
@@ -43,17 +43,17 @@
 - **20-Role Bench**：default pack 内置 20 个可编排角色，覆盖策略、研究、产品、体验、增长、技术、运维、数据、财务、法务、客户成功等链路。
 - **Role Packs**：支持把默认角色集复制成新 pack，并在运行时切换不同角色包。
 - **Main/Sub Orchestration**：内置 `CEO主Agent -> sub-agent` 的主从编排结构，支持主 agent 派发子任务。
-- **Agent Board**：用本地看板实时查看主 agent、sub-agent、派发任务、风险密度和最近事件。
+- **Agent Board**：用本地看板只读查看主 agent、sub-agent、当前编组档位、模型路由和最近状态变化。
 - **Model Routing**：允许主 agent 和不同 sub-agent 指定不同 API provider / model；未配置时默认继承宿主平台模型。
 - **Adaptive Orchestration**：支持 `daily / important / full` 三档编组，默认分别对应 `3 / 8 / 20角色` 的协同规模。
 - **Workflow Runbooks**：补充 `OPC-Micro / Sprint / Control` 三种运行模式，以及 handoff/runbook 模板。
 
-## 新增能力：主从编排 + 可视化看板 + 多模型路由
+## 编排升级：弹性编组 + 可视化看板 + 多模型路由
 
 - `tools/agent_ops.py` 维护主 agent / sub-agent 注册表、工作状态、派发任务和模型配置。
 - `tools/agent_catalog.py` 负责校验角色目录、输出 manifest、发现/复制 role pack，并让角色层与编排层解耦。
 - `tools/agent_convert.py` 负责把角色目录导出成 OpenClaw / Claude Code / Cursor / Windsurf / API 的集成文件。
-- `tools/dashboard.py serve` 启动集成看板，浏览器直接派发 sub-agent、调整状态、切换模型路由。
+- `tools/dashboard.py serve` 启动集成看板，浏览器直接查看当前编组档位、角色状态和模型切换入口。
 - agent 模型配置支持三种来源：
   - `default`：继承全局默认路由
   - `platform_default`：强制使用宿主平台模型
@@ -61,6 +61,7 @@
 - 默认全局路由是 `platform_default`，也就是“默认用模型本身的模型”。
 - 默认拓扑里 `ceo` 是主 agent，default pack 现在内置 20 个角色，从项目、研究、产品、体验、增长到技术、运维、QA、数据、采购、HR、法务都可直接编排。
 - 编组默认分三档：`daily` 常驻 3 个 sub-agent，`important` 调用 8 个核心 sub-agent，`full` 启用满编 20 角色（`CEO + 19 个 sub-agent`）。
+- 这意味着 OPC 的重点不再是“把 20 个角色全都常驻挂着”，而是让 CEO 主 agent 根据任务强度决定什么时候只动小队，什么时候拉起核心班底，什么时候再满编开战。
 
 ## 真实任务跑出来是什么样
 
