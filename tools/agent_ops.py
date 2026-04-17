@@ -32,6 +32,7 @@ from storage import get_storage
 
 AGENT_STATUSES = ["idle", "running", "waiting", "blocked", "completed", "offline"]
 ASSIGNMENT_STATUSES = ["queued", "running", "blocked", "done", "canceled"]
+PROFILE_ALL_SUB_AGENTS = "__all_sub_agents__"
 
 STATUS_LABELS = {
     "idle": "空闲",
@@ -48,6 +49,71 @@ ASSIGNMENT_STATUS_LABELS = {
     "blocked": "阻塞",
     "done": "已完成",
     "canceled": "已取消"
+}
+
+PROFILE_PRIORITY = {
+    "daily": 1,
+    "important": 2,
+    "full": 3
+}
+
+LEVEL_PROFILE_MAP = {
+    "L1_SIMPLE": "daily",
+    "L2_JUDGMENT": "daily",
+    "L3_STRATEGY": "important",
+    "L4_DEBATE": "full"
+}
+
+LEVEL_ALIASES = {
+    "L1": "L1_SIMPLE",
+    "L1_SIMPLE": "L1_SIMPLE",
+    "L2": "L2_JUDGMENT",
+    "L2_JUDGMENT": "L2_JUDGMENT",
+    "L3": "L3_STRATEGY",
+    "L3_STRATEGY": "L3_STRATEGY",
+    "L4": "L4_DEBATE",
+    "L4_DEBATE": "L4_DEBATE"
+}
+
+DEFAULT_DISPATCH_PROFILES = {
+    "daily": {
+        "label": "日常常驻",
+        "description": "日常任务默认由 3 个常驻 sub-agent 待命，保持响应速度和上下文稳定。",
+        "sub_agent_target": 3,
+        "agent_ids": ["coo", "project", "strategist"],
+        "task_levels": ["L1_SIMPLE", "L2_JUDGMENT"]
+    },
+    "important": {
+        "label": "重要任务",
+        "description": "重要任务拉起 8 个核心 sub-agent，覆盖拆解、研究、方案、执行与校验。",
+        "sub_agent_target": 8,
+        "agent_ids": ["coo", "project", "strategist", "research", "product", "tech", "data", "qa"],
+        "task_levels": ["L3_STRATEGY"]
+    },
+    "full": {
+        "label": "满编协同",
+        "description": "用户指定或高复杂任务启用全部角色梯队，按当前 pack 的满编能力协同。",
+        "sub_agent_target": 20,
+        "agent_ids": PROFILE_ALL_SUB_AGENTS,
+        "task_levels": ["L4_DEBATE"]
+    }
+}
+
+DEFAULT_PROFILE_KEYWORDS = {
+    "full": [
+        "满血",
+        "全员",
+        "全部代理",
+        "所有代理",
+        "20个代理",
+        "复杂任务",
+        "高复杂度",
+        "跨部门",
+        "集团级",
+        "全量",
+        "专项战役",
+        "用户指定"
+    ]
 }
 
 def _default_model_config() -> Dict:
@@ -78,6 +144,16 @@ def _assignment_storage():
     return get_storage("assignments", {
         "backend": config.get("storage.backend", "file"),
         "base_dir": config.get_path("assignments_dir"),
+        "use_lock": config.get("storage.file_lock", True),
+        "auto_backup": config.get("storage.auto_backup", False)
+    })
+
+
+def _task_storage():
+    config = get_config()
+    return get_storage("tasks", {
+        "backend": config.get("storage.backend", "file"),
+        "base_dir": config.get_path("tasks_dir"),
         "use_lock": config.get("storage.file_lock", True),
         "auto_backup": config.get("storage.auto_backup", False)
     })
@@ -142,6 +218,263 @@ def get_main_agent_id() -> str:
     if configured != main_agent:
         get_config().set("orchestration.main_agent_id", main_agent)
     return main_agent
+
+
+def normalize_task_level(level: Optional[str]) -> Optional[str]:
+    if level in (None, ""):
+        return None
+    text = str(level).strip().upper()
+    return LEVEL_ALIASES.get(text, str(level).strip())
+
+
+def load_task_record(task_id: str) -> Optional[Dict]:
+    if not task_id:
+        return None
+    return _task_storage().load(task_id)
+
+
+def _ordered_sub_agents(pack: Optional[str] = None) -> List[Dict]:
+    return [
+        agent for agent in _load_default_agents(strict=True, pack=pack)
+        if agent.get("agent_type") == "sub"
+    ]
+
+
+def get_default_dispatch_profile_id() -> str:
+    configured = str(get_config().get("orchestration.default_profile", "daily") or "daily").strip()
+    return configured if configured in DEFAULT_DISPATCH_PROFILES else "daily"
+
+
+def get_dispatch_profiles() -> Dict[str, Dict]:
+    raw_profiles = get_config().get("orchestration.dispatch_profiles", {}) or {}
+    profiles: Dict[str, Dict] = {}
+
+    for profile_id, default in DEFAULT_DISPATCH_PROFILES.items():
+        merged = copy.deepcopy(default)
+        raw = raw_profiles.get(profile_id, {}) if isinstance(raw_profiles, dict) else {}
+        if isinstance(raw, dict):
+            for key in ("label", "description"):
+                if raw.get(key) is not None:
+                    merged[key] = str(raw.get(key)).strip() or merged[key]
+            if "sub_agent_target" in raw:
+                try:
+                    merged["sub_agent_target"] = max(0, int(raw.get("sub_agent_target") or 0))
+                except (TypeError, ValueError):
+                    pass
+            if "task_levels" in raw and isinstance(raw.get("task_levels"), list):
+                merged["task_levels"] = [
+                    normalize_task_level(level)
+                    for level in raw.get("task_levels", [])
+                    if normalize_task_level(level)
+                ]
+            if "agent_ids" in raw:
+                agent_ids = raw.get("agent_ids")
+                if isinstance(agent_ids, str):
+                    merged["agent_ids"] = PROFILE_ALL_SUB_AGENTS if agent_ids == PROFILE_ALL_SUB_AGENTS else [agent_ids]
+                elif isinstance(agent_ids, list):
+                    merged["agent_ids"] = [str(agent_id).strip() for agent_id in agent_ids if str(agent_id).strip()]
+
+        if isinstance(merged.get("agent_ids"), list):
+            deduped: List[str] = []
+            seen = set()
+            for agent_id in merged["agent_ids"]:
+                if agent_id not in seen:
+                    deduped.append(agent_id)
+                    seen.add(agent_id)
+            merged["agent_ids"] = deduped
+
+        merged["profile_id"] = profile_id
+        profiles[profile_id] = merged
+
+    return profiles
+
+
+def _profile_keywords() -> Dict[str, List[str]]:
+    merged = copy.deepcopy(DEFAULT_PROFILE_KEYWORDS)
+    raw_keywords = get_config().get("orchestration.profile_keywords", {}) or {}
+    if not isinstance(raw_keywords, dict):
+        return merged
+
+    for profile_id, keywords in raw_keywords.items():
+        if not isinstance(keywords, list):
+            continue
+        merged[profile_id] = [str(keyword).strip() for keyword in keywords if str(keyword).strip()]
+    return merged
+
+
+def _keyword_profile(*texts: Optional[str]) -> Optional[Dict]:
+    haystack = " ".join(str(text or "").strip().lower() for text in texts if str(text or "").strip())
+    if not haystack:
+        return None
+
+    for profile_id, keywords in _profile_keywords().items():
+        for keyword in keywords:
+            normalized = keyword.lower()
+            if normalized and normalized in haystack:
+                return {
+                    "profile_id": profile_id,
+                    "keyword": keyword
+                }
+    return None
+
+
+def _selected_profile_agents(profile: Dict) -> List[Dict]:
+    sub_agents = _ordered_sub_agents()
+    if not sub_agents:
+        return []
+
+    target = max(0, int(profile.get("sub_agent_target") or 0))
+    all_by_id = {agent["agent_id"]: agent for agent in sub_agents}
+    configured = profile.get("agent_ids", [])
+
+    if configured == PROFILE_ALL_SUB_AGENTS:
+        return sub_agents[:]
+
+    selected: List[Dict] = []
+    seen = set()
+    if isinstance(configured, list):
+        for agent_id in configured:
+            agent = all_by_id.get(agent_id)
+            if not agent or agent_id in seen:
+                continue
+            selected.append(agent)
+            seen.add(agent_id)
+
+    if target and len(selected) < target:
+        for agent in sub_agents:
+            if agent["agent_id"] in seen:
+                continue
+            selected.append(agent)
+            seen.add(agent["agent_id"])
+            if len(selected) >= target:
+                break
+
+    return selected[:target] if target else selected
+
+
+def describe_orchestration_plan(
+    task: Optional[Dict] = None,
+    level: Optional[str] = None,
+    requested_profile: Optional[str] = None,
+    title: Optional[str] = None,
+    ceo_input: Optional[str] = None,
+    reason: Optional[str] = None
+) -> Dict:
+    profiles = get_dispatch_profiles()
+    profile_id = str(requested_profile or (task or {}).get("orchestration_profile") or "").strip()
+    source = "explicit"
+    matched_keyword = None
+
+    if profile_id not in profiles:
+        keyword_match = _keyword_profile(
+            (task or {}).get("title"),
+            (task or {}).get("ceo_input"),
+            (task or {}).get("assessment_reason"),
+            title,
+            ceo_input,
+            reason
+        )
+        if keyword_match and keyword_match["profile_id"] in profiles:
+            profile_id = keyword_match["profile_id"]
+            matched_keyword = keyword_match["keyword"]
+            source = "keyword"
+        else:
+            normalized_level = normalize_task_level(level or (task or {}).get("level"))
+            profile_id = LEVEL_PROFILE_MAP.get(normalized_level, get_default_dispatch_profile_id())
+            source = "task_level" if normalized_level else "default"
+    else:
+        normalized_level = normalize_task_level(level or (task or {}).get("level"))
+
+    profile = copy.deepcopy(profiles.get(profile_id, profiles[get_default_dispatch_profile_id()]))
+    selected_agents = _selected_profile_agents(profile)
+    selected_agent_ids = [agent["agent_id"] for agent in selected_agents]
+    available_sub_agents = _ordered_sub_agents()
+    available_roles = len(available_sub_agents) + 1
+    selected_role_count = len(selected_agents) + 1
+
+    source_labels = {
+        "explicit": "用户指定",
+        "keyword": "复杂度命中",
+        "task_level": "任务等级",
+        "default": "默认档位"
+    }
+
+    if profile_id == "full" and selected_role_count == available_roles:
+        headline = f"{profile.get('label')} · {selected_role_count} 角色"
+    else:
+        headline = f"{profile.get('label')} · {len(selected_agents)} 子代理"
+
+    return {
+        "profile_id": profile_id,
+        "label": profile.get("label", profile_id),
+        "description": profile.get("description", ""),
+        "source": source,
+        "source_label": source_labels.get(source, source),
+        "matched_keyword": matched_keyword,
+        "task_id": (task or {}).get("task_id"),
+        "task_title": (task or {}).get("title") or title,
+        "task_level": normalize_task_level(level or (task or {}).get("level")),
+        "sub_agents": [
+            {
+                "agent_id": agent["agent_id"],
+                "name": agent.get("name"),
+                "role": agent.get("role")
+            }
+            for agent in selected_agents
+        ],
+        "selected_sub_agent_ids": selected_agent_ids,
+        "selected_sub_agent_count": len(selected_agents),
+        "target_sub_agent_count": int(profile.get("sub_agent_target") or len(selected_agents)),
+        "selected_role_count": selected_role_count,
+        "available_sub_agent_count": len(available_sub_agents),
+        "available_role_count": available_roles,
+        "headline": headline
+    }
+
+
+def build_orchestration_snapshot(tasks: Optional[List[Dict]] = None) -> Dict:
+    profiles = {
+        profile_id: describe_orchestration_plan(requested_profile=profile_id)
+        for profile_id in ("daily", "important", "full")
+    }
+    default_profile_id = get_default_dispatch_profile_id()
+    open_tasks = [
+        task for task in (tasks or [])
+        if task.get("state") not in {"completed"}
+    ]
+
+    current_profile = profiles[default_profile_id]
+    focus_task = None
+    if open_tasks:
+        ranked_plans = []
+        for task in open_tasks:
+            plan = describe_orchestration_plan(task=task)
+            ranked_plans.append({
+                "task": task,
+                "plan": plan
+            })
+
+        ranked_plans.sort(
+            key=lambda item: (
+                PROFILE_PRIORITY.get(item["plan"]["profile_id"], 0),
+                item["task"].get("updated_at", item["task"].get("created_at", "")),
+                item["task"].get("created_at", "")
+            ),
+            reverse=True
+        )
+        focus_task = ranked_plans[0]["task"]
+        current_profile = ranked_plans[0]["plan"]
+
+    current_profile = copy.deepcopy(current_profile)
+    current_profile["focus_task_id"] = focus_task.get("task_id") if focus_task else None
+    current_profile["focus_task_title"] = focus_task.get("title") if focus_task else None
+    current_profile["focus_task_state"] = focus_task.get("state") if focus_task else None
+
+    return {
+        "default_profile_id": default_profile_id,
+        "profiles": profiles,
+        "current_profile": current_profile
+    }
 
 
 def _normalize_model_config(model_config: Optional[Dict]) -> Dict:
@@ -894,6 +1227,29 @@ def emit_resolved_model(agent_id: str):
     emit_json(True, agent_id=agent_id, model=agent["effective_model"])
 
 
+def emit_orchestration_recommendation(
+    task_id: Optional[str],
+    level: Optional[str],
+    profile: Optional[str],
+    title: Optional[str],
+    ceo_input: Optional[str],
+    reason: Optional[str]
+):
+    task = load_task_record(task_id) if task_id else None
+    if task_id and not task:
+        emit_error(f"任务 {task_id} 不存在")
+
+    plan = describe_orchestration_plan(
+        task=task,
+        level=level,
+        requested_profile=profile,
+        title=title,
+        ceo_input=ceo_input,
+        reason=reason
+    )
+    emit_json(True, recommendation=plan)
+
+
 def _parse_headers(headers_text: Optional[str]) -> Dict:
     if not headers_text:
         return {}
@@ -973,6 +1329,14 @@ def main():
     resolve_parser = subparsers.add_parser("resolve-model", help="查看 agent 的最终模型配置")
     resolve_parser.add_argument("--agent-id", required=True, help="agent ID")
 
+    recommend_parser = subparsers.add_parser("recommend", help="根据任务级别或显式档位推荐编组规模")
+    recommend_parser.add_argument("--task-id", help="任务 ID")
+    recommend_parser.add_argument("--level", choices=["L1", "L2", "L3", "L4"], help="任务级别")
+    recommend_parser.add_argument("--profile", choices=["daily", "important", "full"], help="显式指定编组档位")
+    recommend_parser.add_argument("--title", help="任务标题")
+    recommend_parser.add_argument("--ceo-input", help="原始 CEO 输入")
+    recommend_parser.add_argument("--reason", help="补充说明或定级原因")
+
     args = parser.parse_args()
 
     if args.command == "init":
@@ -1043,6 +1407,15 @@ def main():
         emit_json(True, model=model_config, message="全局默认模型配置已更新")
     elif args.command == "resolve-model":
         emit_resolved_model(args.agent_id)
+    elif args.command == "recommend":
+        emit_orchestration_recommendation(
+            task_id=args.task_id,
+            level=args.level,
+            profile=args.profile,
+            title=args.title,
+            ceo_input=args.ceo_input,
+            reason=args.reason
+        )
     else:
         parser.print_help()
 

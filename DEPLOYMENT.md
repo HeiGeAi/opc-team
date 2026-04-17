@@ -320,7 +320,22 @@ if response.choices[0].message.get("function_call"):
   },
   "orchestration": {
     "main_agent_id": "ceo",
-    "agent_pack": "default"
+    "agent_pack": "default",
+    "default_profile": "daily",
+    "dispatch_profiles": {
+      "daily": {
+        "sub_agent_target": 3,
+        "agent_ids": ["coo", "project", "strategist"]
+      },
+      "important": {
+        "sub_agent_target": 8,
+        "agent_ids": ["coo", "project", "strategist", "research", "product", "tech", "data", "qa"]
+      },
+      "full": {
+        "sub_agent_target": 20,
+        "agent_ids": "__all_sub_agents__"
+      }
+    }
   }
 }
 ```

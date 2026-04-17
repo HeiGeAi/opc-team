@@ -90,7 +90,11 @@ def create_task(title: str, ceo_input: str) -> str:
         "updated_at": datetime.now().isoformat(),
         "actors": [],
         "progress": 0,
-        "progress_log": []
+        "progress_log": [],
+        "orchestration_profile": None,
+        "recommended_sub_agents": [],
+        "recommended_role_count": 1,
+        "assessment_reason": None
     }
 
     storage.save(task_id, task)
@@ -106,7 +110,7 @@ def create_task(title: str, ceo_input: str) -> str:
     return task_id
 
 
-def assess_task(task_id: str, level: str, reason: str):
+def assess_task(task_id: str, level: str, reason: str, agent_profile: str = None):
     """任务定级"""
     config = get_config()
     backend = config.get("storage.backend", "file")
@@ -135,14 +139,30 @@ def assess_task(task_id: str, level: str, reason: str):
         task["level"] = level_map.get(level, level)
         task["state"] = TaskState.ASSESSED.value
         task["updated_at"] = datetime.now().isoformat()
+        task["assessment_reason"] = reason
         task["actors"].append({
             "role": "COO",
             "name": "魏明远",
             "action": "定级",
             "level": level,
+            "orchestration_profile": agent_profile,
             "reason": reason,
             "timestamp": datetime.now().isoformat()
         })
+
+        try:
+            from agent_ops import describe_orchestration_plan
+            plan = describe_orchestration_plan(
+                task=task,
+                requested_profile=agent_profile,
+                reason=reason
+            )
+            task["orchestration_profile"] = plan["profile_id"]
+            task["recommended_sub_agents"] = plan["selected_sub_agent_ids"]
+            task["recommended_role_count"] = plan["selected_role_count"]
+        except Exception:
+            if agent_profile:
+                task["orchestration_profile"] = agent_profile
 
         storage.save(task_id, task)
     log_operation("assess", task_id, "task", {"level": level, "reason": reason})
@@ -159,7 +179,15 @@ def assess_task(task_id: str, level: str, reason: str):
     except Exception:
         pass
 
-    emit_json(True, task_id=task_id, level=level, message=f"任务 {task_id} 定级为 {level}")
+    emit_json(
+        True,
+        task_id=task_id,
+        level=level,
+        orchestration_profile=task.get("orchestration_profile"),
+        recommended_sub_agents=task.get("recommended_sub_agents", []),
+        recommended_role_count=task.get("recommended_role_count", 1),
+        message=f"任务 {task_id} 定级为 {level}"
+    )
 
 
 def transition_state(task_id: str, to_state: str, actor: str):
@@ -371,6 +399,7 @@ def main():
     assess_parser.add_argument("--task-id", required=True, help="任务ID")
     assess_parser.add_argument("--level", required=True, choices=["L1", "L2", "L3", "L4"], help="任务级别")
     assess_parser.add_argument("--reason", required=True, help="定级原因")
+    assess_parser.add_argument("--agent-profile", choices=["daily", "important", "full"], help="显式指定编组档位")
 
     # transition
     transition_parser = subparsers.add_parser("transition", help="状态流转")
@@ -398,7 +427,7 @@ def main():
     if args.command == "create":
         create_task(args.title, args.ceo_input)
     elif args.command == "assess":
-        assess_task(args.task_id, args.level, args.reason)
+        assess_task(args.task_id, args.level, args.reason, agent_profile=args.agent_profile)
     elif args.command == "transition":
         transition_state(args.task_id, args.to, args.actor)
     elif args.command == "progress":

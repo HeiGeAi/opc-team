@@ -3069,6 +3069,25 @@
       }));
     }
 
+    function currentOrchestration(summary) {
+      return summary?.orchestration?.current_profile || {};
+    }
+
+    function profilePillLabel(summary) {
+      const profile = currentOrchestration(summary);
+      const label = profile.label || "日常常驻";
+      const count = Number(profile.selected_sub_agent_count || 0);
+      return `${label} ${count}`;
+    }
+
+    function compareAgentActivation(a, b) {
+      const rankDelta = Number(a.activation_rank || 99) - Number(b.activation_rank || 99);
+      if (rankDelta !== 0) return rankDelta;
+      const progressDelta = Number(b.progress || 0) - Number(a.progress || 0);
+      if (progressDelta !== 0) return progressDelta;
+      return String(a.agent_id || "").localeCompare(String(b.agent_id || ""));
+    }
+
     function avatarMarkup(agent, large = false) {
       const progress = Math.max(0, Math.min(100, agent.progress || 0));
       const badge = avatarBadge(agent);
@@ -3123,7 +3142,7 @@
         ["运行中", states.running ?? 0],
         ["等待中", states.waiting ?? 0],
         ["空闲中", states.idle ?? 0],
-        ["Sub-Agent", metrics.sub_agents_total ?? 0],
+        ["当前编组", profilePillLabel(summary)],
       ];
       document.getElementById("stats").innerHTML = items.map(([label, value]) => `
         <div class="metric-pill">
@@ -3136,12 +3155,18 @@
     function renderMainAgent(summary) {
       const agent = summary.main_agent;
       const pulses = statusItems(summary);
-      const clusterAgents = (summary.agents || []).filter((item) => !item.is_main_agent).slice(0, 8);
+      const activeIds = new Set(currentOrchestration(summary).selected_sub_agent_ids || []);
+      const clusterAgents = (summary.agents || [])
+        .filter((item) => !item.is_main_agent && activeIds.has(item.agent_id))
+        .sort(compareAgentActivation)
+        .slice(0, 8);
       const root = document.getElementById("mainAgentHero");
       if (!agent) {
         root.innerHTML = `<div class="empty">当前没有主 agent。</div>`;
         return;
       }
+
+      const profile = currentOrchestration(summary);
 
       root.innerHTML = `
         <div class="presence-stage">
@@ -3177,8 +3202,8 @@
               <strong>${esc(agent.current_task_title || "主控待命")}</strong>
             </div>
             <div class="presence-kpi">
-              <span>最后更新</span>
-              <strong>${esc(formatTimeShort(agent.updated_at))}</strong>
+              <span>当前编组</span>
+              <strong>${esc(profile.headline || "日常常驻 · 3 子代理")}</strong>
             </div>
           </div>
         </div>
@@ -3186,7 +3211,9 @@
     }
 
     function renderSubAgents(summary) {
-      const agents = (summary.agents || []).filter((agent) => !agent.is_main_agent);
+      const agents = (summary.agents || [])
+        .filter((agent) => !agent.is_main_agent)
+        .sort(compareAgentActivation);
       const root = document.getElementById("subAgents");
 
       if (!agents.length) {
@@ -3212,6 +3239,7 @@
           </div>
           <div class="sub-meta">
             <div class="tiny-pill">角色 ${esc(agent.role || "-")}</div>
+            <div class="tiny-pill">${agent.recommended_active ? `当前调用 ${esc(agent.activation_label || "常驻")}` : `梯队 ${esc(agent.activation_label || "预备")}`}</div>
             ${modelSwitcherMarkup(agent, summary)}
             <div class="tiny-pill">更新 ${esc(formatTimeShort(agent.updated_at))}</div>
           </div>
@@ -3225,9 +3253,17 @@
       const items = statusItems(summary);
       const customCount = Number(summary.model_catalog?.custom_models?.length || 0);
       const switchingEnabled = Boolean(summary.model_catalog?.switching_enabled);
+      const orchestration = summary.orchestration || {};
+      const currentProfile = orchestration.current_profile || {};
+      const dailyProfile = orchestration.profiles?.daily || {};
+      const importantProfile = orchestration.profiles?.important || {};
+      const fullProfile = orchestration.profiles?.full || {};
       const routeCopy = customCount
         ? `当前已接入 ${customCount} 个自定义模型。点击下方入口可以继续新增；角色卡里的模型标签也已经开放切换。`
         : "当前还没有接入任何自定义模型。先点下方入口补充 provider 和模型名，接入后角色卡才会开放切换。";
+      const orchestrationCopy = currentProfile.focus_task_title
+        ? `当前按 ${currentProfile.label || "日常常驻"} 编组运行，焦点任务是 ${currentProfile.focus_task_title}。`
+        : `当前没有高强度任务，保持 ${currentProfile.label || "日常常驻"} 编组待命。`;
       root.innerHTML = `
         <article class="status-card">
           <div class="meta">Agent States</div>
@@ -3242,12 +3278,19 @@
           </div>
         </article>
         <article class="status-card route-card">
-          <div class="meta">Model Routing</div>
+          <div class="meta">Orchestration · Model</div>
           <div class="tiny-row">
+            <div class="tiny-pill">日常 ${Number(dailyProfile.selected_sub_agent_count || 0)}</div>
+            <div class="tiny-pill">重要 ${Number(importantProfile.selected_sub_agent_count || 0)}</div>
+            <div class="tiny-pill">满编 ${Number(fullProfile.selected_role_count || summary.metrics?.agents_total || 0)} 角色</div>
+          </div>
+          <div class="tiny-row">
+            <div class="tiny-pill">当前 ${esc(currentProfile.label || "日常常驻")}</div>
             <div class="tiny-pill">${customCount ? `已接入 ${customCount} 个模型` : "未接入自定义模型"}</div>
             <div class="tiny-pill">${switchingEnabled ? "角色卡可切换" : "接入后开启切换"}</div>
             <div class="tiny-pill">主 agent ${esc(summary.main_agent?.status_label || "未加载")}</div>
           </div>
+          <div class="route-copy">${esc(orchestrationCopy)}</div>
           <div class="route-copy">${esc(routeCopy)}</div>
           <div class="route-actions">
             <button type="button" class="catalog-cta" data-open-model-catalog data-state="${switchingEnabled ? "ready" : "empty"}">${switchingEnabled ? "管理已接入模型" : "去接入模型"}</button>

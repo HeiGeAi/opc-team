@@ -7,8 +7,14 @@
 | 模式 | 适用场景 | 核心角色 | 目标时长 |
 |---|---|---|---|
 | `OPC-Micro` | 单个问题、单次决策、小范围验证 | CEO / COO / 1-3 个 sub-agent | 0.5-1 天 |
-| `OPC-Sprint` | MVP、功能迭代、业务专项 | CEO / COO / 项目 / 产品 / 技术 / QA | 1-3 周 |
-| `OPC-Control` | 多团队、跨部门、持续运行场景 | CEO / COO / 项目 / 财务 / 法务 / 客户成功 | 持续 |
+| `OPC-Sprint` | MVP、功能迭代、业务专项 | CEO / COO / 8 个核心 sub-agent | 1-3 周 |
+| `OPC-Control` | 多团队、跨部门、持续运行场景 | 满编 20 角色协同 | 持续 |
+
+默认编组建议：
+
+- `OPC-Micro` 对应 `daily`，常驻 3 个 sub-agent
+- `OPC-Sprint` 对应 `important`，拉起 8 个核心 sub-agent
+- `OPC-Control` 对应 `full`，直接启用 20 角色满编协同
 
 ## OPC-Micro
 

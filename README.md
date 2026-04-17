@@ -45,6 +45,7 @@
 - **Main/Sub Orchestration**：内置 `CEO主Agent -> sub-agent` 的主从编排结构，支持主 agent 派发子任务。
 - **Agent Board**：用本地看板实时查看主 agent、sub-agent、派发任务、风险密度和最近事件。
 - **Model Routing**：允许主 agent 和不同 sub-agent 指定不同 API provider / model；未配置时默认继承宿主平台模型。
+- **Adaptive Orchestration**：支持 `daily / important / full` 三档编组，默认分别对应 `3 / 8 / 20角色` 的协同规模。
 - **Workflow Runbooks**：补充 `OPC-Micro / Sprint / Control` 三种运行模式，以及 handoff/runbook 模板。
 
 ## 新增能力：主从编排 + 可视化看板 + 多模型路由
@@ -59,6 +60,7 @@
   - `custom_api`：指定独立 provider / model / api_base / api_key_env
 - 默认全局路由是 `platform_default`，也就是“默认用模型本身的模型”。
 - 默认拓扑里 `ceo` 是主 agent，default pack 现在内置 20 个角色，从项目、研究、产品、体验、增长到技术、运维、QA、数据、采购、HR、法务都可直接编排。
+- 编组默认分三档：`daily` 常驻 3 个 sub-agent，`important` 调用 8 个核心 sub-agent，`full` 启用满编 20 角色（`CEO + 19 个 sub-agent`）。
 
 ## 真实任务跑出来是什么样
 
@@ -88,6 +90,14 @@
 - `strategy/runbooks/` 里提供 `startup-mvp / enterprise-feature / incident-response` 三类场景 runbook。
 - 这样 OPC 不只是“能派发角色”，而是能把不同场景的执行方式固定下来。
 
+## 编组档位：把 20 角色按任务强度弹性调用
+
+- `daily`：日常常驻 3 个 sub-agent，默认是 `coo / project / strategist`。
+- `important`：重要任务拉起 8 个核心 sub-agent，默认是 `coo / project / strategist / research / product / tech / data / qa`。
+- `full`：用户指定或高复杂任务直接启用满编 20 角色，也就是 `CEO + 19 个 sub-agent` 全量协同。
+- `tools/task_flow.py assess --agent-profile ...` 可以显式指定档位。
+- `tools/agent_ops.py recommend` 可以按任务等级、标题或关键词输出当前推荐编组。
+
 ---
 
 ## 🚀 Quick Start
@@ -108,6 +118,9 @@ python3 tools/task_flow.py create --title "评估知识付费可行性" --ceo-in
 
 # 2. 定级
 python3 tools/task_flow.py assess --task-id T001 --level L3 --reason "需要多方案和风险评估"
+
+# 如果是用户指定的复杂任务，可直接切到满编档位
+python3 tools/task_flow.py assess --task-id T001 --level L4 --reason "复杂任务，需要全量协同" --agent-profile full
 
 # 3. 创建决策履历
 python3 tools/decision_log.py create \
@@ -414,6 +427,12 @@ python3 tools/agent_ops.py set-model \
 
 # 把某个 agent 切回宿主默认模型
 python3 tools/agent_ops.py set-model --agent-id strategist --source platform_default
+
+# 按任务级别查看推荐编组
+python3 tools/agent_ops.py recommend --level L3
+
+# 按任务标题 / 复杂度关键词自动判断是否满编
+python3 tools/agent_ops.py recommend --title "集团级跨部门复杂任务" --reason "用户指定全员协同"
 ```
 
 ### dashboard.py - 本地可视化看板
@@ -448,10 +467,10 @@ sed -n '1,220p' strategy/runbooks/scenario-enterprise-feature.md
 
 | 级别 | 特征 | 处理方式 | 预计时间 |
 |------|------|----------|----------|
-| L1 | 简单查询/执行 | COO 直接调单一部门 | <5分钟 |
-| L2 | 有限判断 | COO + 1-2部门评估 | 5-30分钟 |
-| L3 | 多方案+风险 | 策略官 + 执行组 | 30分-2小时 |
-| L4 | 战略级 | 廷议模式 | 2小时以上 |
+| L1 | 简单查询/执行 | `daily`：3 个常驻 sub-agent | <5分钟 |
+| L2 | 有限判断 | `daily`：3 个常驻 sub-agent | 5-30分钟 |
+| L3 | 多方案+风险 | `important`：8 个核心 sub-agent | 30分-2小时 |
+| L4 | 战略级 | `full`：满编 20 角色协同 | 2小时以上 |
 
 ---
 
@@ -509,7 +528,22 @@ sed -n '1,220p' strategy/runbooks/scenario-enterprise-feature.md
   },
   "orchestration": {
     "main_agent_id": "ceo",
-    "agent_pack": "default"
+    "agent_pack": "default",
+    "default_profile": "daily",
+    "dispatch_profiles": {
+      "daily": {
+        "sub_agent_target": 3,
+        "agent_ids": ["coo", "project", "strategist"]
+      },
+      "important": {
+        "sub_agent_target": 8,
+        "agent_ids": ["coo", "project", "strategist", "research", "product", "tech", "data", "qa"]
+      },
+      "full": {
+        "sub_agent_target": 20,
+        "agent_ids": "__all_sub_agents__"
+      }
+    }
   }
 }
 ```

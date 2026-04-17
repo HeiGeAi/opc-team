@@ -21,6 +21,7 @@ from urllib.parse import urlparse
 
 from agent_catalog import list_agent_packs
 from agent_ops import (
+    build_orchestration_snapshot,
     dispatch_assignment,
     get_default_model_config,
     get_agent_pack,
@@ -128,6 +129,7 @@ def build_summary() -> Dict:
     risks = _load_entities("risks", "risks_dir")
     agents = list_agents()
     assignments = list_assignments()
+    orchestration = build_orchestration_snapshot(tasks)
 
     tasks.sort(key=lambda item: item.get("updated_at", item.get("created_at", "")), reverse=True)
     task_map = {task["task_id"]: task for task in tasks if task.get("task_id")}
@@ -168,6 +170,15 @@ def build_summary() -> Dict:
     agents_by_task = defaultdict(list)
     enriched_agents = []
     main_agent_id = get_main_agent_id()
+    daily_agent_ids = set(orchestration["profiles"]["daily"]["selected_sub_agent_ids"])
+    important_agent_ids = set(orchestration["profiles"]["important"]["selected_sub_agent_ids"])
+    current_agent_ids = set(orchestration["current_profile"]["selected_sub_agent_ids"])
+    activation_labels = {
+        "main": "主控",
+        "resident": "常驻",
+        "core": "扩展",
+        "reserve": "预备"
+    }
 
     for agent in agents:
         current_task_id = agent.get("current_task_id")
@@ -195,6 +206,26 @@ def build_summary() -> Dict:
         )
         agent["current_assignment"] = current_assignment
         agent["is_main_agent"] = agent["agent_id"] == main_agent_id
+        if agent["is_main_agent"]:
+            agent["activation_lane"] = "main"
+            agent["activation_label"] = activation_labels["main"]
+            agent["recommended_active"] = True
+            agent["activation_rank"] = 0
+        else:
+            if agent["agent_id"] in daily_agent_ids:
+                activation_lane = "resident"
+            elif agent["agent_id"] in important_agent_ids:
+                activation_lane = "core"
+            else:
+                activation_lane = "reserve"
+            agent["activation_lane"] = activation_lane
+            agent["activation_label"] = activation_labels[activation_lane]
+            agent["recommended_active"] = agent["agent_id"] in current_agent_ids
+            agent["activation_rank"] = 0 if agent["recommended_active"] else {
+                "resident": 1,
+                "core": 2,
+                "reserve": 3
+            }[activation_lane]
         enriched_agents.append(agent)
 
     task_cards = []
@@ -214,7 +245,10 @@ def build_summary() -> Dict:
             "high_risk_count": high_risks_by_task.get(task_id, 0),
             "agents": agents_by_task.get(task_id, []),
             "assignments": assignments_by_task.get(task_id, []),
-            "latest_progress": (task.get("progress_log") or [{}])[-1] if task.get("progress_log") else None
+            "latest_progress": (task.get("progress_log") or [{}])[-1] if task.get("progress_log") else None,
+            "orchestration_profile": task.get("orchestration_profile"),
+            "recommended_sub_agents": task.get("recommended_sub_agents", []),
+            "recommended_role_count": task.get("recommended_role_count")
         })
 
     task_states = Counter(task.get("state", "unknown") for task in tasks)
@@ -242,6 +276,7 @@ def build_summary() -> Dict:
             "agents_total": len(enriched_agents),
             "sub_agents_total": sum(1 for agent in enriched_agents if agent.get("agent_type") == "sub"),
             "agents_active": sum(1 for agent in enriched_agents if agent.get("status") in {"running", "waiting", "blocked"}),
+            "agents_recommended": orchestration["current_profile"]["selected_role_count"],
             "tasks_total": len(tasks),
             "tasks_in_progress": sum(1 for task in tasks if task.get("state") in {"in_strategy", "in_execution", "in_debate", "assessed"}),
             "tasks_blocked": task_states.get("blocked", 0) + task_states.get("escalated", 0),
@@ -254,6 +289,7 @@ def build_summary() -> Dict:
             "assignments": dict(assignment_states)
         },
         "main_agent": main_agent,
+        "orchestration": orchestration,
         "agents": enriched_agents,
         "tasks": task_cards,
         "assignments": assignments[:16],
