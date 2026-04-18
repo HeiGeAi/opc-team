@@ -488,24 +488,86 @@
     }
 
     .presence-cluster {
-      grid-template-columns: repeat(4, minmax(0, 1fr));
+      grid-template-columns: repeat(3, minmax(0, 1fr));
       width: 100%;
       position: relative;
       z-index: 2;
     }
 
+    .presence-signature,
+    .presence-cluster-shell {
+      position: relative;
+      z-index: 2;
+      width: 100%;
+    }
+
+    .presence-signature {
+      display: grid;
+      justify-items: center;
+      gap: 2px;
+      padding: 10px 14px;
+      border-radius: 18px;
+      background: rgba(255,255,255,0.72);
+      border: 1px solid rgba(18, 37, 45, 0.08);
+      box-shadow: 0 10px 30px rgba(18, 37, 45, 0.06);
+      text-align: center;
+    }
+
+    .presence-signature strong {
+      font-size: 1rem;
+      font-family: var(--display);
+      font-weight: 700;
+      color: rgba(18, 37, 45, 0.94);
+    }
+
+    .presence-signature span {
+      font-size: 11px;
+      font-family: var(--mono);
+      letter-spacing: 0.08em;
+      color: rgba(18, 37, 45, 0.58);
+      text-transform: uppercase;
+    }
+
+    .presence-cluster-shell {
+      display: grid;
+      gap: 8px;
+    }
+
+    .presence-cluster-title {
+      font-size: 11px;
+      font-family: var(--mono);
+      letter-spacing: 0.08em;
+      color: rgba(18, 37, 45, 0.54);
+      text-transform: uppercase;
+      padding-left: 2px;
+    }
+
     .presence-chip {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      min-height: 36px;
-      padding: 6px 8px;
+      display: grid;
+      align-content: center;
+      justify-items: start;
+      min-height: 42px;
+      padding: 8px 10px;
       border-radius: 16px;
       background: rgba(255,255,255,0.65);
       border: 1px solid rgba(18, 37, 45, 0.08);
-      font-size: 11px;
-      font-family: var(--mono);
       color: rgba(18, 37, 45, 0.76);
+      text-align: left;
+    }
+
+    .presence-chip small {
+      font-size: 9px;
+      font-family: var(--mono);
+      letter-spacing: 0.08em;
+      color: rgba(18, 37, 45, 0.52);
+      text-transform: uppercase;
+    }
+
+    .presence-chip strong {
+      font-size: 12px;
+      font-family: var(--display);
+      font-weight: 700;
+      line-height: 1.1;
     }
 
     .presence-copy {
@@ -2941,6 +3003,34 @@
       return Array.from(label).slice(0, 2).join("");
     }
 
+    function normalizeLegacyCopy(value, summary = latestSummary) {
+      if (value === null || value === undefined) return "";
+      const mainName = String(summary?.main_agent?.name || "小黑子").trim() || "小黑子";
+      return String(value)
+        .replaceAll("CEO主Agent", mainName)
+        .replaceAll("CEO 主 agent", "主控")
+        .replaceAll("CEO主 agent", "主控")
+        .replaceAll("派发 sub-agent", "派发子代理任务")
+        .replaceAll("sub-agent", "子代理");
+    }
+
+    function subAgentTrail(summary, agent) {
+      const parentName = String(summary?.main_agent?.name || "小黑子").trim() || "小黑子";
+      const childKey = String(agent.agent_id || agent.role || "-").trim() || "-";
+      return `${parentName} → ${childKey}`;
+    }
+
+    function presenceChipMarkup(agent) {
+      const lane = String(agent.activation_label || "协同").trim();
+      const short = shortAgentName(agent);
+      return `
+        <div class="presence-chip ${cls(agent.status)}" title="${esc(agent.name || agent.agent_id || short)}">
+          <small>${esc(lane)}</small>
+          <strong>${esc(short)}</strong>
+        </div>
+      `;
+    }
+
     function formatTimeShort(value) {
       if (!value) return "未更新";
       const date = new Date(value);
@@ -3159,7 +3249,7 @@
       const clusterAgents = (summary.agents || [])
         .filter((item) => !item.is_main_agent && activeIds.has(item.agent_id))
         .sort(compareAgentActivation)
-        .slice(0, 8);
+        .slice(0, 6);
       const root = document.getElementById("mainAgentHero");
       if (!agent) {
         root.innerHTML = `<div class="empty">当前没有主 agent。</div>`;
@@ -3171,22 +3261,32 @@
       root.innerHTML = `
         <div class="presence-stage">
           ${avatarMarkup(agent, true)}
-          <div class="presence-cluster">
-            ${clusterAgents.map((item) => `
-              <div class="presence-chip ${cls(item.status)}">${esc(shortAgentName(item))}</div>
-            `).join("")}
+          <div class="presence-signature">
+            <strong>${esc(agent.name || "小黑子")}</strong>
+            <span>CEO 主控</span>
+          </div>
+          <div class="presence-cluster-shell">
+            <div class="presence-cluster-title">当前协同小队</div>
+            <div class="presence-cluster">
+              ${clusterAgents.length ? clusterAgents.map((item) => presenceChipMarkup(item)).join("") : `
+                <div class="presence-chip idle">
+                  <small>待命</small>
+                  <strong>主控</strong>
+                </div>
+              `}
+            </div>
           </div>
         </div>
         <div class="presence-copy">
           <div>
             <div class="agent-title">
               <div>
-                <div class="meta">Main Agent · ${esc(agent.agent_id)}</div>
+                <div class="meta">Main Agent · ${esc(agent.role || String(agent.agent_id || "").toUpperCase())}</div>
                 <h3 class="agent-name">${esc(agent.name)}</h3>
               </div>
               <div class="status ${cls(agent.status)}">${esc(agent.status_label || agent.status)}</div>
             </div>
-            <div class="subline">${esc(agent.last_message || "暂无动态")}</div>
+            <div class="subline">${esc(normalizeLegacyCopy(agent.last_message || "暂无动态", summary))}</div>
           </div>
           <div class="presence-pulse">
             ${pulses.slice(0, 3).map((item) => `
@@ -3228,12 +3328,12 @@
             <div style="min-width:0; width:100%;">
               <div class="agent-title">
                 <div>
-                  <div class="meta">${esc(agent.parent_agent_id || "-")} → ${esc(agent.agent_id)}</div>
+                  <div class="meta">${esc(subAgentTrail(summary, agent))}</div>
                   <h3 class="agent-name">${esc(agent.name)}</h3>
                 </div>
                 <div class="status ${cls(agent.status)}">${esc(agent.status_label || agent.status)}</div>
               </div>
-              <div class="subline">${esc(agent.last_message || "暂无动态")}</div>
+              <div class="subline">${esc(normalizeLegacyCopy(agent.last_message || "暂无动态", summary))}</div>
               <div class="progress"><span style="width:${Math.max(0, Math.min(100, agent.progress || 0))}%"></span></div>
             </div>
           </div>

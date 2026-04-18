@@ -22,7 +22,7 @@ default pack 当前内置 20 个角色，覆盖主控编排、项目推进、策
 
 | agent_id | 名称 | 类型 | 上级 | 核心能力 |
 |---|---|---|---|---|
-| `ceo` | CEO主Agent | main | - | dispatch, model_routing, status_control, summary |
+| `ceo` | 小黑子 | main | - | dispatch, model_routing, status_control, summary |
 | `coo` | COO魏明远 | sub | `ceo` | task_assess, task_transition, memory_sync |
 | `project` | 项目何安澜 | sub | `ceo` | task_progress, task_transition, memory_sync |
 | `strategist` | 策略官苏然 | sub | `ceo` | task_progress, decision_create, risk_assess |

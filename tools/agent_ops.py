@@ -209,6 +209,33 @@ def _builtin_agent_map() -> Dict[str, Dict]:
     return {agent["agent_id"]: agent for agent in _load_default_agents(strict=True)}
 
 
+def _catalog_agent_name(agent_id: Optional[str], pack: Optional[str] = None) -> Optional[str]:
+    if not agent_id:
+        return None
+    agent = next(
+        (item for item in _load_default_agents(strict=True, pack=pack) if item.get("agent_id") == agent_id),
+        None
+    )
+    return agent.get("name") if agent else None
+
+
+def _normalize_display_text(text: Optional[str], pack: Optional[str] = None) -> Optional[str]:
+    if text is None:
+        return None
+    normalized = str(text)
+    ceo_name = _catalog_agent_name(get_main_agent_id(), pack=pack) or "小黑子"
+    replacements = {
+        "CEO主Agent": ceo_name,
+        "CEO 主 agent": "主控",
+        "CEO主 agent": "主控",
+        "派发 sub-agent": "派发子代理任务",
+        "sub-agent": "子代理"
+    }
+    for source, target in replacements.items():
+        normalized = normalized.replace(source, target)
+    return normalized
+
+
 def get_main_agent_id() -> str:
     configured = str(get_config().get("orchestration.main_agent_id", "") or "").strip()
     catalog = _load_default_agents(strict=True)
@@ -694,10 +721,21 @@ def _merge_agent(template: Dict, stored: Optional[Dict]) -> Dict:
     agent = _new_agent_record(template)
     if stored:
         agent.update(stored)
+    agent["name"] = template.get("name", agent.get("name"))
+    agent["role"] = template.get("role", agent.get("role"))
+    agent["description"] = template.get("description", agent.get("description"))
     agent["catalog_pack"] = template.get("pack", get_agent_pack())
     agent["agent_type"] = agent.get("agent_type", template.get("agent_type", "sub"))
     agent["parent_agent_id"] = agent.get("parent_agent_id", template.get("parent_agent_id"))
-    agent["capabilities"] = stored.get("capabilities", agent["capabilities"]) if stored else agent["capabilities"]
+    agent["capabilities"] = list(template.get("capabilities", agent.get("capabilities", [])))
+    agent["last_message"] = _normalize_display_text(agent.get("last_message"), pack=agent["catalog_pack"])
+    agent["history"] = [
+        {
+            **item,
+            "message": _normalize_display_text(item.get("message"), pack=agent["catalog_pack"])
+        } if isinstance(item, dict) else item
+        for item in agent.get("history", [])
+    ]
     agent["model_config"] = _normalize_model_config(agent.get("model_config"))
     agent["status_label"] = STATUS_LABELS.get(agent.get("status", "idle"), agent.get("status", "idle"))
     agent["effective_model"] = _resolve_model_config(agent)
@@ -791,6 +829,15 @@ def _enrich_assignment(assignment: Optional[Dict]) -> Optional[Dict]:
     if not assignment:
         return None
     enriched = copy.deepcopy(assignment)
+    pack = enriched.get("catalog_pack", get_agent_pack())
+    from_name = _catalog_agent_name(enriched.get("from_agent_id"), pack=pack)
+    to_name = _catalog_agent_name(enriched.get("to_agent_id"), pack=pack)
+    if from_name:
+        enriched["from_agent_name"] = from_name
+    if to_name:
+        enriched["to_agent_name"] = to_name
+    enriched["brief"] = _normalize_display_text(enriched.get("brief"), pack=pack)
+    enriched["last_message"] = _normalize_display_text(enriched.get("last_message"), pack=pack)
     enriched["status_label"] = ASSIGNMENT_STATUS_LABELS.get(enriched.get("status", "queued"), enriched.get("status", "queued"))
     return enriched
 
