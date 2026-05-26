@@ -103,7 +103,10 @@ def create_task(title: str, ceo_input: str) -> str:
     try:
         from agent_ops import get_main_agent_id, sync_agent_from_task
         sync_agent_from_task(task, agent_id=get_main_agent_id(), message=f"收到新任务：{title}")
-    except Exception:
+    except (Exception, SystemExit):
+        # sync_agent_from_task / sync_to_memory_md call emit_error which raises
+        # SystemExit. SystemExit is not an Exception so a bare `except Exception`
+        # leaks it past best-effort hooks and aborts the caller mid-stream.
         pass
 
     emit_json(True, task_id=task_id, message=f"任务 {task_id} 创建成功")
@@ -160,7 +163,7 @@ def assess_task(task_id: str, level: str, reason: str, agent_profile: str = None
             task["orchestration_profile"] = plan["profile_id"]
             task["recommended_sub_agents"] = plan["selected_sub_agent_ids"]
             task["recommended_role_count"] = plan["selected_role_count"]
-        except Exception:
+        except (Exception, SystemExit):
             if agent_profile:
                 task["orchestration_profile"] = agent_profile
 
@@ -170,13 +173,19 @@ def assess_task(task_id: str, level: str, reason: str, agent_profile: str = None
     try:
         from agent_ops import sync_agent_from_task
         sync_agent_from_task(task, actor="COO魏明远", message=f"完成任务定级：{reason}")
-    except Exception:
+    except (Exception, SystemExit):
+        # sync_agent_from_task / sync_to_memory_md call emit_error which raises
+        # SystemExit. SystemExit is not an Exception so a bare `except Exception`
+        # leaks it past best-effort hooks and aborts the caller mid-stream.
         pass
 
     try:
         from agent_ops import get_main_agent_id, sync_agent_from_task
         sync_agent_from_task(task, agent_id=get_main_agent_id(), message=f"主 agent 完成任务定级：{reason}")
-    except Exception:
+    except (Exception, SystemExit):
+        # sync_agent_from_task / sync_to_memory_md call emit_error which raises
+        # SystemExit. SystemExit is not an Exception so a bare `except Exception`
+        # leaks it past best-effort hooks and aborts the caller mid-stream.
         pass
 
     emit_json(
@@ -248,7 +257,10 @@ def transition_state(task_id: str, to_state: str, actor: str):
     try:
         from agent_ops import sync_agent_from_task
         sync_agent_from_task(task, actor=actor, message=f"状态流转至 {to_state}")
-    except Exception:
+    except (Exception, SystemExit):
+        # sync_agent_from_task / sync_to_memory_md call emit_error which raises
+        # SystemExit. SystemExit is not an Exception so a bare `except Exception`
+        # leaks it past best-effort hooks and aborts the caller mid-stream.
         pass
 
     # 如果开启了 auto_sync_memory 且任务完成，同步到 MEMORY.md
@@ -256,7 +268,7 @@ def transition_state(task_id: str, to_state: str, actor: str):
         try:
             from memory_sync import sync_to_memory_md
             sync_to_memory_md(task_id)
-        except Exception:
+        except (Exception, SystemExit):
             pass  # 忽略同步失败
 
     emit_json(True, task_id=task_id, from_state=from_state, to_state=to_state, message=f"任务 {task_id} 状态已更新")
@@ -299,7 +311,7 @@ def report_progress(task_id: str, message: str, progress: int, agent_id: str = N
         try:
             from agent_ops import sync_agent_from_task
             sync_agent_from_task(task, agent_id=agent_id, message=message)
-        except Exception:
+        except (Exception, SystemExit):
             pass
 
     # 生成进度条

@@ -2,7 +2,16 @@
 
 > 路线图是公开承诺，不是 wishlist。下面每一项要么已经做完，要么有明确的下个版本目标，要么标注「未来」并说明触发条件。
 
-## v4.5 — 工程化质量底座（当前版本）
+## v4.6 — 强度测试 + 三个 P0 修复（当前版本）
+
+> v4.5 工程化底座搭好后，11 类强度测试在 1500+ 操作的负载下找出三个真问题，本版本修掉。
+
+- [x] **agent catalog 重复加载（P0-1）**：写路径每次都重读 20 个 agent .md，把 `assess_task` 拖到 5.7 ops/s。引入 mtime-based 缓存后 → 30+ ops/s（5×）。
+- [x] **`except Exception` 抓不到 `SystemExit`（P0-2）**：sync 钩子内 emit_error 抛 SystemExit 漏出去，用户看到 success: true 但状态没真正落盘。改成 `except (Exception, SystemExit)`，补 4 个回归测试。
+- [x] **SQLite 后端两个深坑（P0-3）**：`StorageFactory.create("sqlite", base_dir=...)` 忽略 `base_dir` 把 db 落到 cwd；多 storage_type 共享 db 下 key 撞车把 task 错搬到 agent namespace。修 db_path 派生 + 加 namespace 透明前缀。
+- [x] 测试数 45 → 58，全套 < 0.5s。
+
+## v4.5 — 工程化质量底座
 
 > 把 README 上「可审计、可治理」的口号变成可验证的实物。
 

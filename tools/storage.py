@@ -175,11 +175,33 @@ class FileStorage(Storage):
 
 
 class SQLiteStorage(Storage):
-    """SQLite 存储（可选）"""
+    """SQLite 存储。
 
-    def __init__(self, db_path: Path):
+    All storage types share a single ``opc.db`` so that one file holds the
+    whole workspace. To avoid key collisions across types (e.g. a task ``T001``
+    vs. an agent record ``T001``), every storage type passes a distinct
+    ``namespace`` which is transparently prefixed onto keys at the SQL layer.
+    Callers continue to use bare keys (``T001``, ``default/ceo``) — the
+    namespace is invisible to them.
+    """
+
+    NAMESPACE_SEP = "::"
+
+    def __init__(self, db_path: Path, namespace: str = ""):
         self.db_path = db_path
+        self.namespace = namespace
         self._init_db()
+
+    def _scoped(self, key: str) -> str:
+        if not self.namespace:
+            return key
+        return f"{self.namespace}{self.NAMESPACE_SEP}{key}"
+
+    def _unscoped(self, scoped_key: str) -> str:
+        prefix = f"{self.namespace}{self.NAMESPACE_SEP}" if self.namespace else ""
+        if prefix and scoped_key.startswith(prefix):
+            return scoped_key[len(prefix):]
+        return scoped_key
 
     def _init_db(self):
         """初始化数据库"""
@@ -206,7 +228,7 @@ class SQLiteStorage(Storage):
         cursor.execute("""
             INSERT OR REPLACE INTO opc_data (key, data, updated_at)
             VALUES (?, ?, CURRENT_TIMESTAMP)
-        """, (key, json.dumps(data, ensure_ascii=False)))
+        """, (self._scoped(key), json.dumps(data, ensure_ascii=False)))
         conn.commit()
         conn.close()
 
@@ -215,7 +237,7 @@ class SQLiteStorage(Storage):
         import sqlite3
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
-        cursor.execute("SELECT data FROM opc_data WHERE key = ?", (key,))
+        cursor.execute("SELECT data FROM opc_data WHERE key = ?", (self._scoped(key),))
         row = cursor.fetchone()
         conn.close()
 
@@ -230,13 +252,13 @@ class SQLiteStorage(Storage):
         cursor = conn.cursor()
 
         if pattern == "*":
-            cursor.execute("SELECT key FROM opc_data")
+            scoped_pattern = self._scoped("%") if self.namespace else "%"
+            cursor.execute("SELECT key FROM opc_data WHERE key LIKE ?", (scoped_pattern,))
         else:
-            # 简单的通配符支持
-            sql_pattern = pattern.replace("*", "%")
+            sql_pattern = self._scoped(pattern.replace("*", "%")) if self.namespace else pattern.replace("*", "%")
             cursor.execute("SELECT key FROM opc_data WHERE key LIKE ?", (sql_pattern,))
 
-        keys = [row[0] for row in cursor.fetchall()]
+        keys = [self._unscoped(row[0]) for row in cursor.fetchall()]
         conn.close()
         return keys
 
@@ -245,7 +267,7 @@ class SQLiteStorage(Storage):
         import sqlite3
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
-        cursor.execute("DELETE FROM opc_data WHERE key = ?", (key,))
+        cursor.execute("DELETE FROM opc_data WHERE key = ?", (self._scoped(key),))
         affected = cursor.rowcount
         conn.commit()
         conn.close()
@@ -269,8 +291,25 @@ class StorageFactory:
             return FileStorage(base_dir, use_lock, auto_backup)
 
         elif backend == "sqlite":
-            db_path = kwargs.get("db_path", Path.cwd() / "data" / "opc.db")
-            return SQLiteStorage(db_path)
+            db_path = kwargs.get("db_path")
+            namespace = kwargs.get("namespace", "")
+            if not db_path:
+                # Callers (task_flow, decision_log, …) pass base_dir like
+                # ``<data_dir>/tasks``. For sqlite we want a single shared
+                # ``opc.db`` at the data root, so derive it from base_dir's
+                # parent and use the directory name as the namespace so each
+                # storage type lives in its own keyspace. Only fall back to
+                # Path.cwd() when neither is set, because that fallback
+                # silently breaks workspace isolation.
+                base_dir = kwargs.get("base_dir")
+                if base_dir:
+                    base_dir_path = Path(base_dir)
+                    db_path = base_dir_path.parent / "opc.db"
+                    if not namespace:
+                        namespace = base_dir_path.name
+                else:
+                    db_path = Path.cwd() / "data" / "opc.db"
+            return SQLiteStorage(Path(db_path), namespace=namespace)
 
         else:
             raise ValueError(f"不支持的存储后端: {backend}")
@@ -296,8 +335,14 @@ def get_storage(storage_type: str, config: Optional[Dict] = None) -> Storage:
                 _storage_instances[storage_type] = FileStorage(base_dir / storage_type, use_lock, auto_backup)
             elif backend == "sqlite":
                 db_path = cfg.get_path("data_dir") / "opc.db"
-                _storage_instances[storage_type] = SQLiteStorage(db_path)
+                _storage_instances[storage_type] = SQLiteStorage(db_path, namespace=storage_type)
         else:
             _storage_instances[storage_type] = StorageFactory.create(**config)
 
     return _storage_instances[storage_type]
+
+
+def reset_storage_cache() -> None:
+    """Drop cached storage singletons. Used by tests and by callers that need
+    to switch backends or workspaces mid-process."""
+    _storage_instances.clear()

@@ -12,11 +12,70 @@ agent_catalog.py - OPC Team 标准化角色目录
 import argparse
 import json
 import shutil
+import threading
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 from config import get_config
 from runtime import emit_error, emit_json
+
+
+# Catalog cache. Keyed by (pack_name, strict). Each entry stores a signature
+# of the agents directory plus the parsed catalog. Cache is invalidated when
+# any agent .md file's mtime or set of files changes. This eliminates a hot
+# 20-file disk re-read on every task_flow state change.
+_CATALOG_CACHE: Dict[Tuple[str, bool], Tuple[Tuple, List[Dict]]] = {}
+_CATALOG_CACHE_LOCK = threading.Lock()
+
+
+def _catalog_signature(agents_dir: Path) -> Tuple:
+    """Return a tuple that changes whenever the agent files change.
+
+    Includes the directory's own mtime (covers add/remove) and every file's
+    (name, mtime, size). Cheap to compute (one stat per file), correctness is
+    not weaker than reading every file.
+    """
+    if not agents_dir.exists():
+        return (None,)
+    try:
+        dir_mtime = agents_dir.stat().st_mtime_ns
+    except OSError:
+        dir_mtime = None
+    file_sigs = []
+    for path in sorted(agents_dir.glob("*.md")):
+        try:
+            stat = path.stat()
+            file_sigs.append((path.name, stat.st_mtime_ns, stat.st_size))
+        except OSError:
+            file_sigs.append((path.name, None, None))
+    return (dir_mtime, tuple(file_sigs))
+
+
+def _cache_get(pack: str, strict: bool, signature: Tuple) -> Optional[List[Dict]]:
+    with _CATALOG_CACHE_LOCK:
+        entry = _CATALOG_CACHE.get((pack, strict))
+        if entry is None:
+            return None
+        cached_sig, cached_agents = entry
+        if cached_sig != signature:
+            return None
+        return [dict(agent) for agent in cached_agents]
+
+
+def _cache_put(pack: str, strict: bool, signature: Tuple, agents: List[Dict]) -> None:
+    with _CATALOG_CACHE_LOCK:
+        _CATALOG_CACHE[(pack, strict)] = (signature, [dict(agent) for agent in agents])
+
+
+def invalidate_catalog_cache(pack: Optional[str] = None) -> None:
+    """Drop cached entries. Call after agent file mutations or in tests."""
+    with _CATALOG_CACHE_LOCK:
+        if pack is None:
+            _CATALOG_CACHE.clear()
+        else:
+            for key in list(_CATALOG_CACHE.keys()):
+                if key[0] == pack:
+                    del _CATALOG_CACHE[key]
 
 
 REQUIRED_KEYS = [
@@ -184,6 +243,16 @@ def _normalize_spec(meta: Dict, body: str, path: Path, pack: str) -> Dict:
 
 def load_agent_catalog(strict: bool = True, pack: Optional[str] = None) -> List[Dict]:
     selected_pack = resolve_pack(pack)
+    agents_dir = get_agents_dir(selected_pack)
+
+    # Mtime-based cache: skip the 20-file re-read when nothing has changed on
+    # disk. Strict and lenient loads are cached separately because lenient
+    # callers tolerate validation errors.
+    signature = _catalog_signature(agents_dir)
+    cached = _cache_get(selected_pack, strict, signature)
+    if cached is not None:
+        return cached
+
     files = list_agent_files(selected_pack)
     errors: List[str] = []
     seen_ids = set()
@@ -221,6 +290,8 @@ def load_agent_catalog(strict: bool = True, pack: Optional[str] = None) -> List[
 
     if errors and strict:
         raise ValueError("\n".join(errors))
+
+    _cache_put(selected_pack, strict, signature, agents)
     return agents
 
 
@@ -311,6 +382,7 @@ def scaffold_agent_pack(source_pack: str, target_pack: str, force: bool = False)
         target_file = target_dir / source_file.name
         shutil.copyfile(source_file, target_file)
         written.append(str(target_file))
+    invalidate_catalog_cache(normalized_target)
     return written
 
 

@@ -3,7 +3,7 @@
 ![OPC Team agent ops hero](./assets/opc-team-hero.png)
 
 [![CI](https://github.com/HeiGeAi/opc-team/actions/workflows/ci.yml/badge.svg)](https://github.com/HeiGeAi/opc-team/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-v4.5.0-111827.svg)](./README.md)
+[![Version](https://img.shields.io/badge/version-v4.6.0-111827.svg)](./README.md)
 [![Python](https://img.shields.io/badge/python-3.9%2B-3776AB.svg?logo=python&logoColor=white)](./pyproject.toml)
 [![Platforms](https://img.shields.io/badge/platform-Claude%20Code%20%7C%20OpenClaw%20%7C%20Cursor%20%7C%20Windsurf%20%7C%20API-0F766E.svg)](./DEPLOYMENT.md)
 [![License](https://img.shields.io/badge/license-MIT-059669.svg)](./LICENSE)
@@ -505,7 +505,7 @@ sed -n '1,220p' strategy/runbooks/scenario-enterprise-feature.md
 
 ```json
 {
-  "version": "4.5.0",
+  "version": "4.6.0",
   "platform": "generic",
   "paths": {
     "tasks_dir": "${data_dir}/tasks",
@@ -642,6 +642,7 @@ python3 tools/memory_sync.py sync --task-id T001
 
 ## 🔄 版本历史
 
+- **v4.6.0** (2026-05-26): 强度测试找出三个 P0 修掉 — agent catalog 加 mtime-based 缓存（写路径 5× 速度）、sync 钩子兜住 `SystemExit`、SQLite 后端修 db_path + 加 namespace 隔离。测试数 45 → 58。详见 [CHANGELOG.md](./CHANGELOG.md)
 - **v4.5.0** (2026-05-26): 工程化质量底座 — pytest 套件（45 用例）+ GitHub Actions CI + `opc` 命令行（pip install）+ 英文 README + examples/ 真实运行产物 + ROADMAP/CHANGELOG。详见 [CHANGELOG.md](./CHANGELOG.md)
 - **v4.4.0** (2026-04-17): 默认角色扩充到 20 个，补充 `strategy/` 工作流层、handoff 模板与场景 runbook，强化 pack 化编排说明
 - **v4.3.0** (2026-04-13): 新增 `CEO主Agent -> sub-agent` 主从编排、派发任务记录、多 agent 独立模型路由、可写集成看板与 dashboard API
