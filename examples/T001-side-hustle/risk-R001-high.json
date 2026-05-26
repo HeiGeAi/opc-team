@@ -1,0 +1,14 @@
+{
+  "risk_id": "R001",
+  "task_id": "T001",
+  "name": "本职工作精力被副业侵占",
+  "probability": 4,
+  "impact": 4,
+  "level": 4,
+  "level_desc": "高危 - 升级处理，建议暂缓",
+  "mitigation": "每周固定副业时间窗口（如周末上午+周三晚），不挪到工作日白天；每月做精力 review，超出阈值立即降级副业投入",
+  "status": "未发生",
+  "actual_impact": null,
+  "created_at": "2026-05-26T21:48:44.962252",
+  "updated_at": "2026-05-26T21:48:44.962258"
+}

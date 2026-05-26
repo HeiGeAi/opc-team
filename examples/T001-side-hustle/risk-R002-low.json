@@ -1,0 +1,14 @@
+{
+  "risk_id": "R002",
+  "task_id": "T001",
+  "name": "前 6 个月零收入导致动力流失",
+  "probability": 3,
+  "impact": 3,
+  "level": 2,
+  "level_desc": "低危 - 监控即可",
+  "mitigation": "前 3 个月只做低价 MVP（如 99 元服务包）验证付费意愿，看到现金流后再加投入",
+  "status": "未发生",
+  "actual_impact": null,
+  "created_at": "2026-05-26T21:48:44.991853",
+  "updated_at": "2026-05-26T21:48:44.991857"
+}

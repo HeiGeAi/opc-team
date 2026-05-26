@@ -65,7 +65,7 @@ class Config:
     def _create_default_config(self) -> Dict:
         """创建默认配置"""
         default = {
-            "version": "4.4.0",
+            "version": "4.5.0",
             "platform": "generic",  # generic / claude_code / openclaw / cursor / api
             "paths": {
                 "data_dir": str(Path.cwd() / "data"),
@@ -335,7 +335,7 @@ class Config:
 
     def print_info(self) -> None:
         """打印配置信息"""
-        print(f"📋 OPC Team 配置信息")
+        print("📋 OPC Team 配置信息")
         print(f"配置文件: {self.config_file}")
         print(f"版本: {self.get('version')}")
         print(f"平台: {self.get('ai_platform.name')}")
@@ -357,7 +357,7 @@ def get_config() -> Config:
 
 
 # CLI 接口
-if __name__ == "__main__":
+def main():
     import argparse
 
     parser = argparse.ArgumentParser(description="OPC Team 配置管理")
@@ -436,3 +436,7 @@ if __name__ == "__main__":
 
     else:
         parser.print_help()
+
+
+if __name__ == "__main__":
+    main()

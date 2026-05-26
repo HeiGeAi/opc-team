@@ -1,0 +1,66 @@
+{
+  "task_id": "T001",
+  "title": "上班族如何发展副业",
+  "ceo_input": "我有本职工作，想用业余时间做副业。希望未来三年逐步增加收入，但不能影响主业",
+  "level": "L3_STRATEGY",
+  "state": "completed",
+  "created_at": "2026-05-26T21:48:23.820278",
+  "updated_at": "2026-05-26T21:48:45.202891",
+  "actors": [
+    {
+      "role": "COO",
+      "name": "魏明远",
+      "action": "定级",
+      "level": "L3",
+      "orchestration_profile": null,
+      "reason": "策略类，需要多方案+风险评估",
+      "timestamp": "2026-05-26T21:48:23.864860"
+    },
+    {
+      "actor": "COO魏明远",
+      "action": "状态流转: assessed -> in_strategy",
+      "timestamp": "2026-05-26T21:48:23.975980"
+    },
+    {
+      "actor": "COO魏明远",
+      "action": "状态流转: in_strategy -> in_execution",
+      "timestamp": "2026-05-26T21:48:45.088712"
+    },
+    {
+      "actor": "COO魏明远",
+      "action": "状态流转: in_execution -> completed",
+      "timestamp": "2026-05-26T21:48:45.202892"
+    }
+  ],
+  "progress": 100,
+  "progress_log": [
+    {
+      "message": "策略方案敲定：B→A→C 三阶段",
+      "progress": 40,
+      "timestamp": "2026-05-26T21:48:45.058365"
+    },
+    {
+      "message": "第一阶段服务包上线，收到 2 个付费客户",
+      "progress": 75,
+      "timestamp": "2026-05-26T21:48:45.170091"
+    },
+    {
+      "message": "任务完成",
+      "progress": 100,
+      "timestamp": "2026-05-26T21:48:45.202886"
+    }
+  ],
+  "orchestration_profile": "important",
+  "recommended_sub_agents": [
+    "coo",
+    "project",
+    "strategist",
+    "research",
+    "product",
+    "tech",
+    "data",
+    "qa"
+  ],
+  "recommended_role_count": 9,
+  "assessment_reason": "策略类，需要多方案+风险评估"
+}

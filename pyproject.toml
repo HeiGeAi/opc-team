@@ -1,0 +1,99 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "opc-team"
+version = "4.5.0"
+description = "Cross-platform Agent Ops Framework — state machine, decision log, risk scoring, and memory for Claude Code, OpenClaw, Cursor, Windsurf, and API workflows."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { file = "LICENSE" }
+authors = [
+    { name = "HeiGeAi" }
+]
+keywords = [
+    "agent-ops",
+    "ai-agent",
+    "claude-code",
+    "openclaw",
+    "cursor",
+    "windsurf",
+    "state-machine",
+    "prompt-engineering",
+    "risk-management",
+    "workflow",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: MacOS",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+dependencies = []
+
+[project.optional-dependencies]
+# Only needed on platforms that lack fcntl (e.g. Windows).
+windows = ["filelock>=3.12"]
+# For contributors running the local dashboard server.
+dev = [
+    "pytest>=7.0",
+    "ruff>=0.5",
+    "filelock>=3.12",
+]
+
+[project.urls]
+Homepage = "https://github.com/HeiGeAi/opc-team"
+Repository = "https://github.com/HeiGeAi/opc-team"
+Issues = "https://github.com/HeiGeAi/opc-team/issues"
+
+[project.scripts]
+opc = "tools.cli:main"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["tools*"]
+exclude = ["tests*", "examples*", "dashboard*", "agents*", "strategy*", "adapters*", "assets*"]
+
+[tool.setuptools.package-data]
+tools = ["*.md", "*.json"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py39"
+extend-exclude = [
+    "data",
+    "examples",
+]
+
+[tool.ruff.lint]
+# Conservative first pass — pyflakes (F) and a subset of pycodestyle (E/W).
+# Tighten over time once style is consistent.
+select = ["F", "E", "W"]
+ignore = [
+    "E501",  # Long lines are common in user-facing Chinese strings.
+    "E402",  # Module-level imports after sys.path setup are intentional.
+    "E722",  # Bare except is used as a tolerant best-effort fallback.
+    "E741",  # Single-letter names like `l` show up in CLI parsers.
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Conditional `import filelock` blocks intentionally test availability.
+"tools/storage.py" = ["F401"]
+"tools/runtime.py" = ["F401"]
+# Test fixtures bind imports for side effects.
+"tests/conftest.py" = ["F401"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"

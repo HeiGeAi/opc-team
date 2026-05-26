@@ -1,0 +1,36 @@
+{
+  "decision_id": "D001",
+  "task_id": "T001",
+  "title": "副业方向选择",
+  "date": "2026-05-26",
+  "options": "方向A:做内容自媒体（个人IP）,方向B:做垂直技能服务（咨询/外包）,方向C:做信息差产品（电商/选品）",
+  "chosen": "B → A → C 三阶段演进",
+  "reason": "先做垂直技能服务变现最快、风险最低，建立专业信任；再内容化做个人IP放大影响力；最后产品化做高毛利信息差产品。这条路径资金压力最小且每步建立的能力都能复用到下一步。",
+  "assumptions": [
+    {
+      "id": 1,
+      "description": "每周能稳定投入15-20小时",
+      "status": "未验证",
+      "actual": null,
+      "verified_at": null
+    },
+    {
+      "id": 2,
+      "description": "本职工作未来12个月不会大变动",
+      "status": "未验证",
+      "actual": null,
+      "verified_at": null
+    },
+    {
+      "id": 3,
+      "description": "垂直技能在市场上有付费需求",
+      "status": "未验证",
+      "actual": null,
+      "verified_at": null
+    }
+  ],
+  "result": null,
+  "backfilled_at": null,
+  "created_at": "2026-05-26T21:48:44.926904",
+  "updated_at": "2026-05-26T21:48:44.926906"
+}
