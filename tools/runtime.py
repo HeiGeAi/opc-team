@@ -13,12 +13,30 @@ runtime.py - OPC Team 统一运行时
 import json
 import os
 import sys
+import threading
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, Dict, Any
 
 from config import get_config
+
+# In-process serialisation. fcntl.flock() guards cross-process access but its
+# behaviour for separate file descriptors held by threads in the same process
+# is platform-dependent (observed flaky on macOS / Python 3.9). The thread lock
+# below covers the within-process case so reserve_id() is safe under both
+# threading and multi-process load.
+_counter_thread_locks: Dict[str, threading.Lock] = {}
+_counter_thread_locks_guard = threading.Lock()
+
+
+def _get_counter_thread_lock(counter_type: str) -> threading.Lock:
+    with _counter_thread_locks_guard:
+        lock = _counter_thread_locks.get(counter_type)
+        if lock is None:
+            lock = threading.Lock()
+            _counter_thread_locks[counter_type] = lock
+        return lock
 
 HAS_FILELOCK = False
 try:
@@ -110,32 +128,35 @@ def get_counter_path(counter_type: str) -> Path:
 
 def reserve_id(prefix: str, counter_type: str) -> str:
     """
-    原子方式预留 ID，避免并发冲突
+    原子方式预留 ID，避免并发冲突。
 
-    使用文件锁保证原子性：
-    1. 锁定计数器文件
-    2. 读取当前值
-    3. +1 后写回
-    4. 解锁
+    双层锁：
+    - 进程内：threading.Lock 保证同一进程多线程串行。
+    - 进程间：fcntl.flock / filelock 保证多进程串行。
+    单独靠文件锁不够，因为 flock 的同进程多 FD 语义在 macOS / Python 3.9
+    下表现不一致，会造成 ID 撞号（见 CI #1 失败）。
+
+    所有读-改-写包括初始化必须在锁内完成，否则未初始化的线程会用 "0"
+    覆盖已被其他线程推进的计数器。
     """
     counter_file = get_counter_path(counter_type)
 
-    # 初始化计数器文件
-    if not counter_file.exists():
-        with open(counter_file, "w") as f:
-            f.write("0")
-
-    # 原子递增
-    with open(counter_file, "r+") as f:
-        lock_file(f)
-        try:
-            current = int(f.read().strip() or "0")
-            next_id = current + 1
-            f.seek(0)
-            f.write(str(next_id))
-            f.truncate()
-        finally:
-            unlock_file(f)
+    with _get_counter_thread_lock(counter_type):
+        # 以 a+ 模式打开：文件不存在则创建，存在则保留内容，FD 起始在末尾。
+        # seek(0) 之后按 r+ 的方式读-改-写。
+        with open(counter_file, "a+", encoding="utf-8") as f:
+            lock_file(f)
+            try:
+                f.seek(0)
+                raw = f.read().strip()
+                current = int(raw) if raw else 0
+                next_id = current + 1
+                f.seek(0)
+                f.truncate()
+                f.write(str(next_id))
+                f.flush()
+            finally:
+                unlock_file(f)
 
     return f"{prefix}{next_id:03d}"
 
