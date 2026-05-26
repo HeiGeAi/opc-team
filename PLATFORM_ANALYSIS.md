@@ -78,9 +78,8 @@ data_dir = Path.cwd() / "data" / "tasks"
 - 多用户环境需要隔离
 
 **解决方案**:
-- 支持多种存储后端（文件系统 / SQLite / Redis）
-- 通过配置文件选择
-- 提供迁移工具
+- 已实现：文件系统（默认）+ SQLite 两种存储后端，通过 `storage.backend` 配置切换
+- 未实现：Redis 后端、跨后端迁移工具（见底部 roadmap）
 
 ---
 
@@ -112,10 +111,10 @@ class Storage:
     def delete(self, key: str) -> None
 ```
 
-实现：
-- FileStorage（当前）
-- SQLiteStorage（可选）
-- RedisStorage（可选）
+实现现状：
+- FileStorage：已实现，默认后端
+- SQLiteStorage：已实现，通过 `storage.backend = "sqlite"` 启用
+- RedisStorage：尚未实现（roadmap 低优先级）
 
 ### 2. 配置接口
 ```python
@@ -148,13 +147,13 @@ class Logger:
 5. ✅ 多平台部署文档
 
 ### 中优先级（建议）
-6. ⬜ SQLite 存储后端（可选）
-7. ⬜ Function schema 定义（供 API 调用）
+6. ✅ SQLite 存储后端（已实现）
+7. ✅ Function schema 定义（供 API 调用）— 见 `adapters/api.json`
 8. ⬜ Docker 镜像
-9. ⬜ 只读模式配置
+9. ✅ 只读模式配置（`features.readonly_mode`）
 
 ### 低优先级（未来）
-10. ⬜ Web UI（可视化看板）
+10. ✅ Web UI（dashboard.py serve + dashboard/index.html）
 11. ⬜ Redis 存储后端
 12. ⬜ 多用户权限系统
 

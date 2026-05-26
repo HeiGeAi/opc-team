@@ -2,12 +2,15 @@
 
 ![OPC Team agent ops hero](./assets/opc-team-hero.png)
 
-[![Version](https://img.shields.io/badge/version-v4.4.0-111827.svg)](./README.md)
-[![Python](https://img.shields.io/badge/python-3.7%2B-3776AB.svg?logo=python&logoColor=white)](./README.md)
+[![CI](https://github.com/HeiGeAi/opc-team/actions/workflows/ci.yml/badge.svg)](https://github.com/HeiGeAi/opc-team/actions/workflows/ci.yml)
+[![Version](https://img.shields.io/badge/version-v4.5.0-111827.svg)](./README.md)
+[![Python](https://img.shields.io/badge/python-3.9%2B-3776AB.svg?logo=python&logoColor=white)](./pyproject.toml)
 [![Platforms](https://img.shields.io/badge/platform-Claude%20Code%20%7C%20OpenClaw%20%7C%20Cursor%20%7C%20Windsurf%20%7C%20API-0F766E.svg)](./DEPLOYMENT.md)
 [![License](https://img.shields.io/badge/license-MIT-059669.svg)](./LICENSE)
 
 > 把“固定角色表”的 AI Agent，升级成“能按任务强度自动扩缩容”的执行系统。
+
+**English**: [README_EN.md](./README_EN.md) · **Examples**: [examples/](./examples/) · **Roadmap**: [ROADMAP.md](./ROADMAP.md)
 
 **OPC Team** 是一个跨平台的 Agent 协作框架，目标不是再造一个角色扮演 prompt，而是给 AI 执行过程加上明确的工程化约束：任务状态机、决策履历、风险量化、三级记忆，以及一组可审计的 CLI 工具。它适合跑在 **Claude Code / OpenClaw / Cursor / Windsurf / 通用 CLI / API 工作流** 上，让 Agent 的执行过程从“看起来会做”变成“真的可控、可回放、可治理”。当前默认编排策略已经升级为 `3 / 8 / 20` 三档弹性编组，也就是日常任务保留常驻小队，重要任务自动扩到核心队列，复杂任务再拉满全部角色协同。
 
@@ -109,22 +112,27 @@
 git clone https://github.com/HeiGeAi/opc-team.git
 cd opc-team
 ./install.sh -p generic --skip-env -t
+# 或者，把 opc 装成命令行工具
+pip install -e .
 ```
+
+> 从 v4.5 开始，所有 `python3 tools/<name>.py ...` 的写法都有一个更短的等价命令：`opc <name> ...`。下面同时给出两种写法，便于对照。
 
 ### 最短上手路径
 
 ```bash
 # 1. 创建任务
-python3 tools/task_flow.py create --title "评估知识付费可行性" --ceo-input "我想做知识付费"
+opc task create --title "评估知识付费可行性" --ceo-input "我想做知识付费"
+# 等价：python3 tools/task_flow.py create --title ... --ceo-input ...
 
 # 2. 定级
-python3 tools/task_flow.py assess --task-id T001 --level L3 --reason "需要多方案和风险评估"
+opc task assess --task-id T001 --level L3 --reason "需要多方案和风险评估"
 
 # 如果是用户指定的复杂任务，可直接切到满编档位
-python3 tools/task_flow.py assess --task-id T001 --level L4 --reason "复杂任务，需要全量协同" --agent-profile full
+opc task assess --task-id T001 --level L4 --reason "复杂任务，需要全量协同" --agent-profile full
 
 # 3. 创建决策履历
-python3 tools/decision_log.py create \
+opc decision create \
   --task-id T001 \
   --title "定价策略" \
   --options "方案A,方案B" \
@@ -133,13 +141,13 @@ python3 tools/decision_log.py create \
   --assumptions "假设1:转化率>5%"
 
 # 4. 推进任务
-python3 tools/task_flow.py transition --task-id T001 --to in_strategy --actor "COO魏明远"
-python3 tools/task_flow.py progress --task-id T001 --message "策略官开始分析" --progress 30 --agent-id strategist
-python3 tools/task_flow.py transition --task-id T001 --to in_execution --actor "COO魏明远"
-python3 tools/task_flow.py transition --task-id T001 --to completed --actor "COO魏明远"
+opc task transition --task-id T001 --to in_strategy --actor "COO魏明远"
+opc task progress --task-id T001 --message "策略官开始分析" --progress 30 --agent-id strategist
+opc task transition --task-id T001 --to in_execution --actor "COO魏明远"
+opc task transition --task-id T001 --to completed --actor "COO魏明远"
 
 # 5. 配置某个 agent 使用独立 API 大模型（可选）
-python3 tools/agent_ops.py set-model \
+opc agent set-model \
   --agent-id strategist \
   --source custom_api \
   --provider openai \
@@ -147,7 +155,7 @@ python3 tools/agent_ops.py set-model \
   --api-key-env OPENAI_API_KEY
 
 # 6. 由 CEO 主 agent 派发 sub-agent 任务
-python3 tools/agent_ops.py dispatch \
+opc agent dispatch \
   --from-agent ceo \
   --to-agent strategist \
   --title "输出三套策略方案" \
@@ -157,8 +165,10 @@ python3 tools/agent_ops.py dispatch \
   --auto-start
 
 # 7. 启动本地看板
-python3 tools/dashboard.py serve
+opc dashboard serve
 ```
+
+更完整的样例运行结果（任务/决策/风险 JSON）请看 [examples/](./examples/)。
 
 ### 在不同平台里怎么用
 
@@ -495,7 +505,7 @@ sed -n '1,220p' strategy/runbooks/scenario-enterprise-feature.md
 
 ```json
 {
-  "version": "4.4.0",
+  "version": "4.5.0",
   "platform": "generic",
   "paths": {
     "tasks_dir": "${data_dir}/tasks",
@@ -632,6 +642,7 @@ python3 tools/memory_sync.py sync --task-id T001
 
 ## 🔄 版本历史
 
+- **v4.5.0** (2026-05-26): 工程化质量底座 — pytest 套件（45 用例）+ GitHub Actions CI + `opc` 命令行（pip install）+ 英文 README + examples/ 真实运行产物 + ROADMAP/CHANGELOG。详见 [CHANGELOG.md](./CHANGELOG.md)
 - **v4.4.0** (2026-04-17): 默认角色扩充到 20 个，补充 `strategy/` 工作流层、handoff 模板与场景 runbook，强化 pack 化编排说明
 - **v4.3.0** (2026-04-13): 新增 `CEO主Agent -> sub-agent` 主从编排、派发任务记录、多 agent 独立模型路由、可写集成看板与 dashboard API
 - **v4.2.3** (2026-04-10): 修复 completed 状态未自动收敛到 100% 进度、同任务并发写可能覆盖进度的问题，保持运行时语义与版本同步

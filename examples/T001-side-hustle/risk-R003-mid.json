@@ -1,0 +1,14 @@
+{
+  "risk_id": "R003",
+  "task_id": "T001",
+  "name": "本职公司禁止副业",
+  "probability": 2,
+  "impact": 5,
+  "level": 3,
+  "level_desc": "中危 - 必须有应对预案",
+  "mitigation": "签约前先看清楚劳动合同；如有约束则副业仅在节假日做，且使用个人邮箱+独立公司账户",
+  "status": "未发生",
+  "actual_impact": null,
+  "created_at": "2026-05-26T21:48:45.023687",
+  "updated_at": "2026-05-26T21:48:45.023692"
+}
