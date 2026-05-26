@@ -39,8 +39,10 @@ Every state change, decision update, and risk assessment is logged as JSON under
 ```bash
 pip install opc-team
 opc config init --platform generic
-opc task create --title "Smoke test" --ceo-input "verify install"
+opc config show
 ```
+
+PyPI installs the engine + `opc` CLI only. Full operation (task lifecycle with sub-agent dispatch) needs the agents/ role catalog, which lives in the source checkout — see "From source" below.
 
 ### From source (current preferred path)
 
