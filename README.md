@@ -3,7 +3,7 @@
 ![OPC Team agent ops hero](./assets/opc-team-hero.png)
 
 [![CI](https://github.com/HeiGeAi/opc-team/actions/workflows/ci.yml/badge.svg)](https://github.com/HeiGeAi/opc-team/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-v4.6.0-111827.svg)](./README.md)
+[![Version](https://img.shields.io/badge/version-v4.7.0-111827.svg)](./README.md)
 [![Python](https://img.shields.io/badge/python-3.9%2B-3776AB.svg?logo=python&logoColor=white)](./pyproject.toml)
 [![Platforms](https://img.shields.io/badge/platform-Claude%20Code%20%7C%20OpenClaw%20%7C%20Cursor%20%7C%20Windsurf%20%7C%20API-0F766E.svg)](./DEPLOYMENT.md)
 [![License](https://img.shields.io/badge/license-MIT-059669.svg)](./LICENSE)
@@ -14,7 +14,7 @@
 
 **OPC Team** 是一个跨平台的 Agent 协作框架，目标不是再造一个角色扮演 prompt，而是给 AI 执行过程加上明确的工程化约束：任务状态机、决策履历、风险量化、三级记忆，以及一组可审计的 CLI 工具。它适合跑在 **Claude Code / OpenClaw / Cursor / Windsurf / 通用 CLI / API 工作流** 上，让 Agent 的执行过程从“看起来会做”变成“真的可控、可回放、可治理”。当前默认编排策略已经升级为 `3 / 8 / 20` 三档弹性编组，也就是日常任务保留常驻小队，重要任务自动扩到核心队列，复杂任务再拉满全部角色协同。
 
-[Quick Start](#-quick-start) · [Platform Matrix](#-supported-platforms) · [Deployment Guide](./DEPLOYMENT.md) · [Agent Catalog](./CATALOG.md) · [Skill Manual](./SKILL.md) · [API Schema](./adapters/api.json)
+[Quick Start](#-quick-start) · [Platform Matrix](#-支持的平台) · [Deployment Guide](./DEPLOYMENT.md) · [Agent Catalog](./CATALOG.md) · [Skill Manual](./SKILL.md) · [API Schema](./adapters/api.json)
 
 ---
 
@@ -46,7 +46,7 @@
 - **20-Role Bench**：default pack 内置 20 个可编排角色，覆盖策略、研究、产品、体验、增长、技术、运维、数据、财务、法务、客户成功等链路。
 - **Role Packs**：支持把默认角色集复制成新 pack，并在运行时切换不同角色包。
 - **Main/Sub Orchestration**：内置 `CEO主Agent -> sub-agent` 的主从编排结构，支持主 agent 派发子任务。
-- **Agent Board**：用本地看板只读查看主 agent、sub-agent、当前编组档位、模型路由和最近状态变化。
+- **Agent Board**：本地查看与调度面板，可查看主 agent、sub-agent、当前编组档位、模型路由和最近状态变化，也支持从面板派发任务、调整状态和模型路由。
 - **Model Routing**：允许主 agent 和不同 sub-agent 指定不同 API provider / model；未配置时默认继承宿主平台模型。
 - **Adaptive Orchestration**：支持 `daily / important / full` 三档编组，默认分别对应 `3 / 8 / 20角色` 的协同规模。
 - **Workflow Runbooks**：补充 `OPC-Micro / Sprint / Control` 三种运行模式，以及 handoff/runbook 模板。
@@ -116,6 +116,8 @@ cd opc-team
 pip install -e .
 ```
 
+> `pip install -e .` 需要 pip >= 21.3（PEP 660 editable install）。旧版 pip 请先 `pip install -U pip`。
+>
 > 从 v4.5 开始，所有 `python3 tools/<name>.py ...` 的写法都有一个更短的等价命令：`opc <name> ...`。下面同时给出两种写法，便于对照。
 
 ### 最短上手路径
@@ -184,11 +186,16 @@ opc dashboard serve
 opc-team/
 ├── SKILL.md                    # 通用 AI 执行手册
 ├── README.md                   # 本文件
+├── README_EN.md                # 英文版 README
 ├── CATALOG.md                  # 角色目录说明
 ├── DEPLOYMENT.md               # 多平台部署指南
 ├── PLATFORM_ANALYSIS.md        # 平台兼容性分析
+├── ROADMAP.md                  # 版本路线图
+├── CHANGELOG.md                # 版本变更记录
 ├── config.json                 # 配置文件
 ├── install.sh                  # 自动安装脚本
+├── pyproject.toml              # 包定义（opc 命令行入口）
+├── setup.py                    # 旧版 pip 兼容 shim
 ├── agents/                     # 标准化角色定义（默认 pack + 自定义 pack）
 │   ├── ceo.md                  # default pack：主控编排角色
 │   ├── coo.md                  # default pack：运营调度角色
@@ -203,6 +210,7 @@ opc-team/
 ├── dashboard/                  # 本地可视化看板
 │   └── index.html              # 单文件看板页面
 ├── tools/                      # CLI 工具层
+│   ├── cli.py                  # opc 命令统一入口
 │   ├── agent_catalog.py        # 角色目录 lint / manifest
 │   ├── agent_convert.py        # 平台角色转换器
 │   ├── task_flow.py            # 任务状态机
@@ -212,13 +220,15 @@ opc-team/
 │   ├── agent_ops.py            # 主从 agent、派发任务与模型路由
 │   ├── dashboard.py            # 集成看板 API 与本地服务
 │   ├── config.py               # 配置管理
-│   ├── storage.py              # 存储抽象层
-│   └── utils.py                # 通用工具
+│   ├── runtime.py              # 统一运行时（JSON 输出、锁、ID、日志）
+│   └── storage.py              # 存储抽象层
 ├── adapters/                   # 平台适配器（可选）
 │   ├── claude_code.md          # Claude Code 特定说明
 │   ├── openclaw.md             # OpenClaw 特定说明
 │   ├── cursor.md               # Cursor 特定说明
 │   └── api.json                # Function schema
+├── tests/                      # pytest 测试套件
+├── examples/                   # 真实运行产物样例
 └── data/                       # 数据存储
     ├── MEMORY.md               # 记忆文件
     ├── tasks/                  # 任务状态
@@ -503,9 +513,11 @@ sed -n '1,220p' strategy/runbooks/scenario-enterprise-feature.md
 
 ### 配置文件 (config.json)
 
+`storage.backend` 可选 `file` / `sqlite`。示例为合法 JSON，可直接复制：
+
 ```json
 {
-  "version": "4.6.0",
+  "version": "4.7.0",
   "platform": "generic",
   "paths": {
     "tasks_dir": "${data_dir}/tasks",
@@ -514,7 +526,7 @@ sed -n '1,220p' strategy/runbooks/scenario-enterprise-feature.md
     "dashboard_dir": "${data_dir}/dashboard"
   },
   "storage": {
-    "backend": "file",  // file / sqlite
+    "backend": "file",
     "file_lock": true,
     "auto_backup": false
   },
@@ -551,7 +563,7 @@ sed -n '1,220p' strategy/runbooks/scenario-enterprise-feature.md
         "agent_ids": ["coo", "project", "strategist", "research", "product", "tech", "data", "qa"]
       },
       "full": {
-        "sub_agent_target": 20,
+        "sub_agent_target": 19,
         "agent_ids": "__all_sub_agents__"
       }
     }
@@ -644,6 +656,7 @@ python3 tools/memory_sync.py sync --task-id T001
 
 ## 🔄 版本历史
 
+- **v4.7.0** (2026-06-10): 数据完整性与接口加固 — decision-id 白名单校验、重复创建拦截（覆盖走 `--force`）、跨任务决策查找消歧（`--task-id` 限定）、escalated 状态加出边（恢复执行 / cancelled）、L4 完成同样要求决策履历、check-sla 全路径结构化输出、completed 流转单 JSON 契约、MEMORY.md 按任务幂等同步且 SQLite 后端行为一致、config 读路径零副作用、readonly_mode 兼容两种写法。测试数 58 → 90。详见 [CHANGELOG.md](./CHANGELOG.md)
 - **v4.6.0** (2026-05-26): 强度测试找出三个 P0 修掉 — agent catalog 加 mtime-based 缓存（写路径 5× 速度）、sync 钩子兜住 `SystemExit`、SQLite 后端修 db_path + 加 namespace 隔离。测试数 45 → 58。详见 [CHANGELOG.md](./CHANGELOG.md)
 - **v4.5.0** (2026-05-26): 工程化质量底座 — pytest 套件（45 用例）+ GitHub Actions CI + `opc` 命令行（pip install）+ 英文 README + examples/ 真实运行产物 + ROADMAP/CHANGELOG。详见 [CHANGELOG.md](./CHANGELOG.md)
 - **v4.4.0** (2026-04-17): 默认角色扩充到 20 个，补充 `strategy/` 工作流层、handoff 模板与场景 runbook，强化 pack 化编排说明

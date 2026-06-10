@@ -133,15 +133,15 @@ check_python() {
         PYTHON_MAJOR=$(echo $PYTHON_VERSION | cut -d. -f1)
         PYTHON_MINOR=$(echo $PYTHON_VERSION | cut -d. -f2)
 
-        if [ "$PYTHON_MAJOR" -ge 3 ] && [ "$PYTHON_MINOR" -ge 7 ]; then
+        if [ "$PYTHON_MAJOR" -gt 3 ] || { [ "$PYTHON_MAJOR" -eq 3 ] && [ "$PYTHON_MINOR" -ge 9 ]; }; then
             echo_success "Python $PYTHON_VERSION 已安装"
             return 0
         else
-            echo_error "需要 Python 3.7+，当前版本: $PYTHON_VERSION"
+            echo_error "需要 Python 3.9+，当前版本: $PYTHON_VERSION"
             return 1
         fi
     else
-        echo_error "未找到 Python 3，请先安装 Python 3.7+"
+        echo_error "未找到 Python 3，请先安装 Python 3.9+"
         return 1
     fi
 }
@@ -439,7 +439,7 @@ EOF
 # 主函数
 main() {
     echo "========================================="
-    echo "  OPC Team v4.6.0 安装程序"
+    echo "  OPC Team v4.7.0 安装程序"
     echo "========================================="
     echo ""
 

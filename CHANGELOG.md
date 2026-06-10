@@ -2,6 +2,66 @@
 
 所有显著变更按版本记录。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)。
 
+## [4.7.0] — 2026-06-10
+
+### 数据完整性、状态机与接口加固
+
+深度检查找出一批数据完整性、状态机死角和接口契约问题，本版本集中修掉。定为 minor 版本：包含新增 CLI 能力（`--force`、决策命令的 `--task-id` 限定、assess 的 `--actor`、新 `cancelled` 状态）和若干行为变更，向后兼容但不只是补丁级修复。
+
+#### Fixed
+
+**数据完整性**
+- `decision_log` 全部 ID 输入加白名单校验（`^[A-Za-z0-9_-]+$`）。此前 `--decision-id` 含 `/` 时数据会写到错误位置且报成功（实际等于写丢），现在直接报错退出
+- 重复 `decision create` 同一 decision-id 不再静默覆盖：已存在即报错，显式覆盖走新增的 `--force` 参数
+- `--decision-id` 跨任务查找不再取 glob 第一个命中：get / update-assumption / backfill 支持 `--task-id` 严格限定该任务；不带 `--task-id` 且多任务命中时报错并列出全部候选键
+- `parse_assumptions` 不再静默丢弃无冒号条目：作为无标签假设收录，JSON 输出的 `assumptions_count` 如实计数；纯空白条目跳过
+- SQLite 后端下 MEMORY.md 缺决策履历：`memory_sync` 此前绕过 storage 抽象直读文件系统，现改走 storage 抽象，文件 / SQLite 两种后端行为一致
+- `memory sync` 不再盲追加：按 task_id 幂等，同任务重复同步会替换旧条目，README 完整示例重复执行不再产生重复条目
+
+**状态机与门禁**
+- `escalated` 状态此前没有出边、SLA 超期又会自动转入，任务一旦升级即永久卡死。现在新增 `escalated → in_execution`（恢复执行）和 `escalated → cancelled`（显式取消）两条出边，并新增终态 `cancelled`
+- L4 任务完成此前不要求决策履历（代码只查 L3，与 SKILL.md 宣称的「L3+ 必须」不一致）：现在 L3 及以上完成前都必须有决策履历
+- `check-sla` 此前所有非升级路径零输出零退出码，无法区分原因。现在每条路径都输出带状态字段的 JSON：SLA 关闭（action=skipped）、任务不存在（success=false + 退出码 1）、终态/已升级、未定级、未达升级阈值（含 sla_status 正常/超期）、已自动升级
+- `completed` 流转 + `auto_sync_memory` 此前 stdout 输出两行 JSON，破坏统一契约。现在记忆同步结果内嵌在 transition 结果的 `memory_sync` 字段里，stdout 保持单 JSON 对象
+
+**接口与配置**
+- `config get` 等读路径不再在 cwd 静默创建 config.json，默认配置只在内存生效；只有显式 `init` / `set` 才落盘
+- `readonly_mode` 兼容顶层与 `features.readonly_mode` 两种写法（此前只认 features 写法，SKILL.md 教的却是顶层写法），文档统一为 features 写法
+- `opc --help` 的 memory 子命令清单从虚构的 `(init, snapshot, summarize)` 改为与实现一致的 `(init, write, compress, archive, read, sync)`
+- 去掉 `task_flow` 里硬编码的「魏明远」：`assess` 新增可选 `--actor` 记录实际操作者，预设角色名只做默认兜底
+- dashboard `_safe_call` 的过宽 except 现在会记录具体异常信息（函数名、SystemExit 退出码、完整 traceback）再返回错误响应
+- `full` 编组档位 `sub_agent_target` 从 20 修正为 19（default pack 共 20 个角色 = CEO 主 agent + 19 个 sub-agent，full 档实际派发的是 19 个 sub-agent）
+
+#### Added
+- `decision create --force`、decision get/update-assumption/backfill 的 `--task-id`、`task assess --actor`
+- 任务状态 `cancelled`（终态，无出边）
+- `memory_sync.write_memory_entry()` / `build_memory_entry()`：返回结果字典、不直接输出 JSON，供 task_flow 内嵌结果
+- 工具脚本执行位：带 shebang 的 `tools/*.py` 在 git 索引里加上 +x，使 install.sh 写入 PATH 的调用方式真正可用
+- 测试 58 → **90**（+32）：覆盖 ID 校验、重复创建、跨任务消歧、无冒号假设、escalated 恢复/取消、L4 门禁、check-sla 各路径、单 JSON 契约、MEMORY.md 幂等与 SQLite 一致性、config 零副作用、readonly 双写法、actor 记录
+
+#### Removed
+- `tools/utils.py`：全文件无任何引用的死代码
+- `tools/runtime.py` 里同源的实体存取辅助段（`save_entity` / `load_entity` / `list_entities` / `delete_entity` / `get_storage_path`，无引用）
+
+#### Docs
+- Python 版本口径统一 3.9+（代码含 walrus 运算符）：install.sh 版本检查、SKILL.md、PLATFORM_ANALYSIS.md
+- README_EN 删除未发布的 `pip install opc-team`（PyPI 404），统一 `pip install -e .`，正文从 v4.5 同步到当前版本
+- README 修复失效锚点、项目结构图补全（cli.py / runtime.py / tests / examples / pyproject.toml / ROADMAP / CHANGELOG / README_EN）、补 pip >= 21.3 门槛说明、dashboard 措辞改为「本地查看与调度面板」
+- DEPLOYMENT.md 修复 your-repo 占位符链接、function calling 示例按 api.json 真实结构（Anthropic tools 格式包装对象）重写
+- 所有 config.json 示例去掉 `//` 注释（复制即合法 JSON），说明移到代码块外
+- ROADMAP 两个 v4.6 撞号条目并入正常版本序列
+
+### Upgrade notes
+
+从 v4.6 升级：
+
+```bash
+git pull
+pytest tests/ -q    # 90/90 应该全过
+```
+
+行为变更注意：重复 `decision create` 现在会报错（之前静默覆盖），如有依赖覆盖行为的脚本请加 `--force`；`check-sla` 现在总有 stdout 输出，解析方按 `action` / `reason` 字段区分；completed 流转的记忆同步结果挪到了 `memory_sync` 字段内。
+
 ## [4.6.0] — 2026-05-26
 
 ### 性能与正确性修复

@@ -249,33 +249,47 @@ python3 tools/dashboard.py serve
 - 自定义 pack：`output/integrations/<pack>/api/agent-catalog.json`
 - 同目录还会生成 `routing-map.json` 和 `SYSTEM_PROMPT.md`
 
-**示例（OpenAI Function Calling）**：
+**示例（Anthropic Tool Use）**：
+
+`adapters/api.json` 是一个包装对象，结构为 `{"name", "description", "version", "tools": [...], "risk_levels", "task_levels"}`。
+工具定义在 `tools` 字段里，使用 Anthropic tools 格式（每个工具含 `name` / `description` / `input_schema`），可直接传给 Anthropic API：
+
 ```python
-import openai
 import json
+import subprocess
 
-# 读取 function schema
+import anthropic
+
+# 读取 schema：api.json 是包装对象，工具列表在 "tools" 字段
 with open("adapters/api.json", "r") as f:
-    functions = json.load(f)
+    schema = json.load(f)
 
-response = openai.ChatCompletion.create(
-    model="gpt-4",
+client = anthropic.Anthropic()
+
+response = client.messages.create(
+    model="claude-sonnet-4-5",
+    max_tokens=1024,
+    system="你是 OPC Team 的 COO 魏明远...",
+    tools=schema["tools"],
     messages=[
-        {"role": "system", "content": "你是 OPC Team 的 COO 魏明远..."},
         {"role": "user", "content": "评估知识付费可行性"}
-    ],
-    functions=functions,
-    function_call="auto"
+    ]
 )
 
-# 处理 function call
-if response.choices[0].message.get("function_call"):
-    function_name = response.choices[0].message["function_call"]["name"]
-    arguments = json.loads(response.choices[0].message["function_call"]["arguments"])
-    
-    # 执行对应的 CLI 工具
-    # ...
+# 处理 tool use
+for block in response.content:
+    if block.type == "tool_use":
+        # block.name 形如 task_create / task_assess / decision_create
+        # block.input 是参数 dict，按映射执行对应的 CLI 工具
+        if block.name == "task_create":
+            subprocess.run([
+                "python3", "tools/task_flow.py", "create",
+                "--title", block.input["title"],
+                "--ceo-input", block.input["ceo_input"]
+            ])
 ```
+
+如果使用 OpenAI 系 API，需要把每个工具的 `input_schema` 改名为 `parameters` 再传给 `tools=[{"type": "function", "function": {...}}]`。
 
 ---
 
@@ -283,9 +297,11 @@ if response.choices[0].message.get("function_call"):
 
 ### config.json
 
+字段说明：`storage.backend` 可选 `file` / `sqlite`；`features.readonly_mode` 为只读模式（仅查询，不修改）。示例为合法 JSON，可直接复制：
+
 ```json
 {
-  "version": "4.6.0",
+  "version": "4.7.0",
   "platform": "generic",
   "paths": {
     "data_dir": "data",
@@ -295,12 +311,12 @@ if response.choices[0].message.get("function_call"):
     "dashboard_dir": "${data_dir}/dashboard"
   },
   "storage": {
-    "backend": "file",  // file / sqlite
+    "backend": "file",
     "file_lock": true,
     "auto_backup": false
   },
   "features": {
-    "readonly_mode": false,  // 只读模式（仅查询，不修改）
+    "readonly_mode": false,
     "auto_sync_memory": true,
     "sla_check_enabled": true,
     "risk_alert_threshold": 3
@@ -338,7 +354,7 @@ if response.choices[0].message.get("function_call"):
         "agent_ids": ["coo", "project", "strategist", "research", "product", "tech", "data", "qa"]
       },
       "full": {
-        "sub_agent_target": 20,
+        "sub_agent_target": 19,
         "agent_ids": "__all_sub_agents__"
       }
     }
@@ -605,4 +621,4 @@ python3 tools/config.py set storage.backend sqlite
 - 查看日志：`cat data/logs/$(date +%Y-%m-%d).log`
 - 查看配置：`python3 tools/config.py info`
 - 运行测试：`./install.sh -t`
-- 提交 Issue：https://github.com/your-repo/opc-team/issues
+- 提交 Issue：https://github.com/HeiGeAi/opc-team/issues

@@ -1,4 +1,4 @@
-# OPC公司Agent团队 v4.6.0 (Universal Edition)
+# OPC公司Agent团队 v4.7.0 (Universal Edition)
 
 **这是一个跨平台通用的主从 Agent 协作框架。**
 
@@ -29,7 +29,7 @@
 echo "任务完成" > status.txt
 
 # ✅ 正确做法
-python3 tools/task_flow.py transition --task-id T001 --to completed
+python3 tools/task_flow.py transition --task-id T001 --to completed --actor "COO魏明远"
 ```
 
 **为什么？**
@@ -296,11 +296,15 @@ python3 tools/memory_sync.py sync --task-id T001
 # 创建任务
 python3 tools/task_flow.py create --title "任务标题" --ceo-input "CEO输入"
 
-# 定级
-python3 tools/task_flow.py assess --task-id T001 --level L3 --reason "原因"
+# 定级（--actor 可选，记录实际操作者，默认 COO魏明远）
+python3 tools/task_flow.py assess --task-id T001 --level L3 --reason "原因" --actor "COO魏明远"
 
 # 状态流转
 python3 tools/task_flow.py transition --task-id T001 --to in_strategy --actor "COO魏明远"
+
+# 升级后的任务可恢复执行或显式取消
+python3 tools/task_flow.py transition --task-id T001 --to in_execution --actor "COO魏明远"
+python3 tools/task_flow.py transition --task-id T001 --to cancelled --actor "COO魏明远"
 
 # 上报进度（可选绑定 agent，看板会同步显示）
 python3 tools/task_flow.py progress --task-id T001 --message "进展描述" --progress 50 --agent-id strategist
@@ -308,11 +312,15 @@ python3 tools/task_flow.py progress --task-id T001 --message "进展描述" --pr
 # 查询状态
 python3 tools/task_flow.py status --task-id T001
 
-# SLA 检查
+# SLA 检查（所有路径都输出带状态字段的 JSON）
 python3 tools/task_flow.py check-sla --task-id T001
 ```
 
 ### decision_log.py - 决策履历
+
+ID 规则：`--task-id` / `--decision-id` 只允许字母、数字、下划线、连字符。
+重复创建同一 decision-id 会报错，显式覆盖需加 `--force`。
+同名 decision-id 出现在多个任务下时，get / update-assumption / backfill 必须带 `--task-id` 限定。
 
 ```bash
 # 创建决策
@@ -328,6 +336,7 @@ python3 tools/decision_log.py create \
 # 更新假设
 python3 tools/decision_log.py update-assumption \
   --decision-id D001 \
+  --task-id T001 \
   --assumption-id 1 \
   --status "证伪" \
   --actual "实际情况" \
@@ -393,7 +402,7 @@ python3 tools/task_flow.py create --title "任务标题" --ceo-input "输入"
 ```
 
 **方案2：使用只读模式**
-- 在 `config.json` 中设置 `"readonly_mode": true`
+- 在 `config.json` 的 `features` 段设置 `"readonly_mode": true`
 - 此模式下只查询状态，不修改数据
 - 适合纯咨询场景
 
@@ -408,29 +417,43 @@ python3 tools/task_flow.py create --title "任务标题" --ceo-input "输入"
 
 配置文件位置：`config.json`
 
-**关键配置项：**
+**关键配置项**（示例为合法 JSON，可直接复制）：
+
 ```json
 {
-  "platform": "generic",           // 平台类型
+  "platform": "generic",
   "paths": {
-    "data_dir": "data"             // 数据目录（可自定义）
+    "data_dir": "data"
   },
   "storage": {
-    "backend": "file",             // 存储后端：file / sqlite
-    "file_lock": true              // 是否使用文件锁
+    "backend": "file",
+    "file_lock": true
   },
   "features": {
-    "readonly_mode": false,        // 只读模式
-    "auto_sync_memory": true,      // 自动同步记忆
-    "sla_check_enabled": true,     // SLA 检查
-    "risk_alert_threshold": 3      // 风险警告阈值
+    "readonly_mode": false,
+    "auto_sync_memory": true,
+    "sla_check_enabled": true,
+    "risk_alert_threshold": 3
   },
   "ai_platform": {
-    "tool_prefix": "python3 tools/",  // 工具路径前缀
-    "supports_bash": true             // 是否支持 Bash 命令
+    "tool_prefix": "python3 tools/",
+    "supports_bash": true
   }
 }
 ```
+
+各字段含义：
+
+- `platform`：平台类型（generic / claude_code / openclaw / cursor / windsurf / api）
+- `paths.data_dir`：数据目录，可自定义
+- `storage.backend`：存储后端，file 或 sqlite
+- `storage.file_lock`：是否使用文件锁
+- `features.readonly_mode`：只读模式（推荐写在 features 段；顶层写法也兼容）
+- `features.auto_sync_memory`：任务完成后自动同步记忆
+- `features.sla_check_enabled`：SLA 检查开关
+- `features.risk_alert_threshold`：风险警告阈值
+- `ai_platform.tool_prefix`：工具路径前缀
+- `ai_platform.supports_bash`：是否支持 Bash 命令
 
 ---
 
@@ -439,7 +462,7 @@ python3 tools/task_flow.py create --title "任务标题" --ceo-input "输入"
 ### 问题1：命令执行失败
 
 **检查清单：**
-1. Python 版本是否 >= 3.7？运行 `python3 --version`
+1. Python 版本是否 >= 3.9？运行 `python3 --version`
 2. 工作目录是否正确？应在 opc-team 根目录
 3. 数据目录是否存在？运行 `ls data/`
 4. 配置文件是否正确？运行 `cat config.json`
@@ -495,8 +518,8 @@ python3 /path/to/opc-team/tools/task_flow.py create ...
 
 ## 八、版本信息
 
-- **版本**: v4.6.0 Universal Edition
-- **发布日期**: 2026-05-26
+- **版本**: v4.7.0 Universal Edition
+- **发布日期**: 2026-06-10
 - **兼容平台**: Claude Code / OpenClaw / Cursor / Windsurf / 通用 CLI
 - **依赖**: Python 3.9+
 - **License**: MIT

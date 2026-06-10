@@ -1,7 +1,7 @@
 # OPC Team — Cross-Platform Agent Ops Framework
 
 [![CI](https://github.com/HeiGeAi/opc-team/actions/workflows/ci.yml/badge.svg)](https://github.com/HeiGeAi/opc-team/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-v4.6.0-111827.svg)](./README.md)
+[![Version](https://img.shields.io/badge/version-v4.7.0-111827.svg)](./README.md)
 [![Python](https://img.shields.io/badge/python-3.9%2B-3776AB.svg?logo=python&logoColor=white)](./pyproject.toml)
 [![License](https://img.shields.io/badge/license-MIT-059669.svg)](./LICENSE)
 
@@ -15,13 +15,13 @@
 
 OPC Team is **not** another role-playing prompt template. It is a small Python framework that wraps an agent team with engineering discipline:
 
-- **Task state machine** with explicit `created → assessed → in_strategy / in_execution / in_debate → completed / blocked / escalated` transitions
+- **Task state machine** with explicit `created → assessed → in_strategy / in_execution / in_debate → completed / blocked / escalated / cancelled` transitions (escalated tasks can resume execution or be cancelled)
 - **Decision log** with options, chosen path, reason, and assumption tracking with falsification triggers
 - **Quantitative risk scoring** (`probability × impact → level 1-5`) with mitigation requirements above a threshold
 - **Three-tier memory** (`L0 working → L1 short-term → L2 long-term`) that survives across sessions
 - **Cross-platform file locking** (`fcntl` on Unix, `filelock` fallback on Windows)
 - **Pack-aware agent catalog**: drop role definitions into `agents/*.md` or `agents/<pack>/*.md`, validate with `opc catalog lint`, switch with `opc agent switch-pack`
-- **Adaptive orchestration**: `daily / important / full` profiles dispatch `3 / 8 / 20` sub-agents based on task intensity
+- **Adaptive orchestration**: `daily / important / full` profiles dispatch `3 / 8 / 19` sub-agents (the `full` profile is all 20 roles: CEO + 19 sub-agents) based on task intensity
 
 Every state change, decision update, and risk assessment is logged as JSON under `data/` so the entire run can be replayed.
 
@@ -34,18 +34,6 @@ Every state change, decision update, and risk assessment is logged as JSON under
 
 ## Install
 
-### From PyPI (recommended once published)
-
-```bash
-pip install opc-team
-opc config init --platform generic
-opc config show
-```
-
-PyPI installs the engine + `opc` CLI only. Full operation (task lifecycle with sub-agent dispatch) needs the agents/ role catalog, which lives in the source checkout — see "From source" below.
-
-### From source (current preferred path)
-
 ```bash
 git clone https://github.com/HeiGeAi/opc-team.git
 cd opc-team
@@ -54,7 +42,9 @@ cd opc-team
 pip install -e .            # installs the `opc` console script
 ```
 
-Requires Python 3.9+. Windows users should `pip install opc-team[windows]` to pull in the `filelock` fallback.
+Requires Python 3.9+ and pip >= 21.3 (PEP 660 editable install; run `pip install -U pip` on older versions). Windows users should `pip install -e ".[windows]"` to pull in the `filelock` fallback.
+
+The package is not published on PyPI; install from a source checkout. The `agents/` role catalog lives in the checkout, so full operation (task lifecycle with sub-agent dispatch) runs from the cloned directory.
 
 ## 60-second walkthrough
 
@@ -83,8 +73,9 @@ opc risk assess \
 opc task transition --task-id T001 --to in_execution --actor "COO"
 
 # When an assumption is falsified, trigger a review
+# (--task-id scopes the lookup when the same decision id exists under multiple tasks)
 opc decision update-assumption \
-  --decision-id D001 --assumption-id 1 --status 证伪 \
+  --decision-id D001 --task-id T001 --assumption-id 1 --status 证伪 \
   --actual "Only 4 senior candidates" --trigger-review
 
 # Check status with SLA
@@ -135,7 +126,7 @@ opc-team/
 ├── adapters/              # Platform integration (Claude Code, OpenClaw, Cursor, API)
 ├── dashboard/             # Web UI (one HTML + tools/dashboard.py serve)
 ├── examples/              # Sample run artifacts (T001/D001/R001 JSON)
-├── tests/                 # pytest suite (~45 cases)
+├── tests/                 # pytest suite (90 cases)
 └── .github/workflows/     # CI: pytest on macOS + Ubuntu × 3 Python versions, plus ruff
 ```
 
@@ -143,7 +134,7 @@ opc-team/
 
 ```bash
 pip install -e ".[dev]"     # pytest, ruff, filelock
-pytest tests/ -v            # 45 unit tests
+pytest tests/ -v            # 90 unit tests
 ruff check tools/ tests/    # lint
 ```
 
@@ -151,9 +142,10 @@ ruff check tools/ tests/    # lint
 
 See [ROADMAP.md](./ROADMAP.md) for what's planned. Highlights:
 
-- v4.5 (current): test coverage, CI, console script, English docs, sample artifacts
-- v4.6: aggregate stats (`opc stats --last 7d`), Docker image, Windows install verification
-- v4.7: Redis storage backend, agent pack registry, telemetry opt-in
+- v4.6: stress testing + three P0 fixes (agent catalog cache, SystemExit-safe sync hooks, SQLite db_path + namespaces)
+- v4.7 (current): data-integrity hardening — decision id validation, duplicate-create guard with `--force`, cross-task decision disambiguation, escalated-state recovery edges, L4 decision gate, structured `check-sla` output, idempotent MEMORY.md sync
+- v4.8: aggregate stats (`opc stats --last 7d`), task audit replay, Docker image, Windows install verification
+- v4.9: agent pack registry, role contract validation, telemetry opt-in
 
 ## License
 

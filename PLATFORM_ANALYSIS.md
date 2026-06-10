@@ -86,7 +86,7 @@ data_dir = Path.cwd() / "data" / "tasks"
 ### 6. Python 环境依赖
 
 **当前实现**:
-- 依赖 Python 3.7+
+- 依赖 Python 3.9+
 - 使用标准库（json, pathlib, fcntl）
 
 **跨平台问题**:
