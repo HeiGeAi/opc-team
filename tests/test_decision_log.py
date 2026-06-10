@@ -27,11 +27,129 @@ def test_parse_assumptions_extracts_id_description_pairs():
     assert items[2]["id"] == 3
 
 
-def test_parse_assumptions_skips_malformed_entries():
+def test_parse_assumptions_keeps_unlabeled_entries():
     decision_log = _get_decision_log()
-    items = decision_log.parse_assumptions("a1:有效,malformed,a2:也有效")
-    # Items without ':' are silently dropped.
+    items = decision_log.parse_assumptions("a1:有效,无冒号假设,a2:也有效")
+    # Entries without ':' are kept as unlabeled assumptions, not silently dropped.
+    assert [a["description"] for a in items] == ["有效", "无冒号假设", "也有效"]
+    assert [a["id"] for a in items] == [1, 2, 3]
+
+
+def test_parse_assumptions_skips_empty_entries():
+    decision_log = _get_decision_log()
+    items = decision_log.parse_assumptions("a1:有效,, ,a2:也有效")
     assert [a["description"] for a in items] == ["有效", "也有效"]
+
+
+def test_create_decision_counts_unlabeled_assumptions(opc_env, capsys):
+    decision_log = _get_decision_log()
+    decision_log.create_decision(
+        "T001", None, "计数检查", "A,B", "A", "x",
+        assumptions="a1:有标签,无标签条目"
+    )
+    payload = _last_json(capsys)
+    assert payload["assumptions_count"] == 2
+
+
+def test_create_decision_rejects_id_with_path_separator(opc_env, capsys):
+    """decision-id 含 / 之前会把数据写到错误位置且报成功，现在直接报错。"""
+    decision_log = _get_decision_log()
+    with pytest.raises(SystemExit):
+        decision_log.create_decision(
+            "T001", "D001/evil", "坏ID", "A,B", "A", "x", "a1:y"
+        )
+    payload = _last_json(capsys)
+    assert payload["success"] is False
+    assert "非法字符" in payload["error"]
+    # 不允许残留任何写入。
+    decisions_dir = opc_env["data_dir"] / "decisions"
+    assert not decisions_dir.exists() or not list(decisions_dir.rglob("*.json"))
+
+
+@pytest.mark.parametrize("bad_id", ["D*", "D?1", "D[1]", "../D001", "D001/../x"])
+def test_create_decision_rejects_glob_metacharacters(opc_env, capsys, bad_id):
+    decision_log = _get_decision_log()
+    with pytest.raises(SystemExit):
+        decision_log.create_decision("T001", bad_id, "坏ID", "A,B", "A", "x", "a1:y")
+    payload = _last_json(capsys)
+    assert "非法字符" in payload["error"]
+
+
+def test_create_duplicate_decision_id_rejected(opc_env, capsys):
+    """同 task 重复 create 同一 decision-id 不再静默覆盖。"""
+    decision_log = _get_decision_log()
+    decision_log.create_decision("T001", "D001", "第一次", "A,B", "A", "x", "a1:y")
+    _last_json(capsys)
+
+    with pytest.raises(SystemExit):
+        decision_log.create_decision("T001", "D001", "第二次", "A,B", "B", "y", "a1:z")
+    payload = _last_json(capsys)
+    assert payload["success"] is False
+    assert "已存在" in payload["error"]
+
+    # 原内容未被覆盖。
+    decision_log.get_decision("D001", task_id="T001")
+    payload = _last_json(capsys)
+    assert payload["decision"]["title"] == "第一次"
+
+
+def test_create_duplicate_decision_id_with_force_overwrites(opc_env, capsys):
+    decision_log = _get_decision_log()
+    decision_log.create_decision("T001", "D001", "第一次", "A,B", "A", "x", "a1:y")
+    _last_json(capsys)
+
+    decision_log.create_decision("T001", "D001", "第二次", "A,B", "B", "y", "a1:z", force=True)
+    payload = _last_json(capsys)
+    assert payload["success"] is True
+
+    decision_log.get_decision("D001", task_id="T001")
+    payload = _last_json(capsys)
+    assert payload["decision"]["title"] == "第二次"
+
+
+def test_same_decision_id_across_tasks_requires_task_id(opc_env, capsys):
+    """同名 decision-id 出现在多个任务下时，不带 --task-id 必须报错并列出候选。"""
+    decision_log = _get_decision_log()
+    decision_log.create_decision("T001", "D001", "任务一的决策", "A,B", "A", "x", "a1:y")
+    _last_json(capsys)
+    decision_log.create_decision("T002", "D001", "任务二的决策", "A,B", "B", "y", "a1:z")
+    _last_json(capsys)
+
+    with pytest.raises(SystemExit):
+        decision_log.get_decision("D001")
+    payload = _last_json(capsys)
+    assert payload["success"] is False
+    assert "T001_D001" in payload["error"]
+    assert "T002_D001" in payload["error"]
+
+
+def test_get_decision_scoped_by_task_id(opc_env, capsys):
+    decision_log = _get_decision_log()
+    decision_log.create_decision("T001", "D001", "任务一的决策", "A,B", "A", "x", "a1:y")
+    _last_json(capsys)
+    decision_log.create_decision("T002", "D001", "任务二的决策", "A,B", "B", "y", "a1:z")
+    _last_json(capsys)
+
+    decision_log.get_decision("D001", task_id="T002")
+    payload = _last_json(capsys)
+    assert payload["decision"]["title"] == "任务二的决策"
+
+
+def test_update_assumption_scoped_by_task_id(opc_env, capsys):
+    decision_log = _get_decision_log()
+    decision_log.create_decision("T001", "D001", "任务一的决策", "A,B", "A", "x", "a1:y")
+    _last_json(capsys)
+    decision_log.create_decision("T002", "D001", "任务二的决策", "A,B", "B", "y", "a1:z")
+    _last_json(capsys)
+
+    decision_log.update_assumption("D001", assumption_id=1, status="验证", task_id="T002")
+    payload = _last_json(capsys)
+    assert payload["success"] is True
+
+    decision_log.get_decision("D001", task_id="T002")
+    assert _last_json(capsys)["decision"]["assumptions"][0]["status"] == "验证"
+    decision_log.get_decision("D001", task_id="T001")
+    assert _last_json(capsys)["decision"]["assumptions"][0]["status"] == "未验证"
 
 
 def test_create_decision_persists(opc_env, capsys):

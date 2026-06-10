@@ -10,6 +10,7 @@ decision_log.py - OPC Team 决策履历管理
 - 触发假设证伪重审
 """
 
+import re
 from datetime import datetime
 from typing import Optional, Dict, List, Tuple
 import argparse
@@ -22,29 +23,75 @@ from runtime import (
 from storage import get_storage
 
 
+# ID 白名单：只允许字母、数字、下划线、连字符。
+# 路径分隔符（/）会让存储键落到错误位置导致数据丢失；
+# glob 元字符（* ? [ ]）会让按 ID 查找时跨界匹配。
+VALID_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")
+
+
+def validate_id(value: Optional[str], field: str) -> str:
+    """校验 ID 输入，含非法字符直接报错退出。"""
+    value = (value or "").strip()
+    if not VALID_ID_PATTERN.match(value):
+        emit_error(f"{field} 含非法字符，只允许字母、数字、下划线、连字符: {value!r}")
+    return value
+
+
 def parse_assumptions(assumptions_str: str) -> List[Dict]:
-    """解析假设字符串"""
-    # 格式: "假设1:描述1,假设2:描述2"
+    """解析假设字符串。
+
+    格式: "标签1:描述1,标签2:描述2"。
+    带冒号的条目取冒号后的内容作为描述；
+    不带冒号的条目作为无标签假设原样收录，不会被静默丢弃。
+    """
     assumptions = []
-    for idx, item in enumerate(assumptions_str.split(","), 1):
+    for item in assumptions_str.split(","):
+        item = item.strip()
+        if not item:
+            continue
         if ":" in item:
             _, desc = item.split(":", 1)
-            assumptions.append({
-                "id": idx,
-                "description": desc.strip(),
-                "status": "未验证",
-                "actual": None,
-                "verified_at": None
-            })
+            desc = desc.strip() or item
+        else:
+            desc = item
+        assumptions.append({
+            "id": len(assumptions) + 1,
+            "description": desc,
+            "status": "未验证",
+            "actual": None,
+            "verified_at": None
+        })
     return assumptions
 
 
-def load_decision_by_id(storage, decision_id: str) -> Tuple[Optional[str], Optional[Dict]]:
-    """按决策 ID 查找存储键和内容。"""
-    for key in storage.list(f"*_{decision_id}"):
+def load_decision_by_id(
+    storage,
+    decision_id: str,
+    task_id: Optional[str] = None
+) -> Tuple[Optional[str], Optional[Dict]]:
+    """按决策 ID 查找存储键和内容。
+
+    指定 task_id 时严格限定该任务下的决策；
+    未指定时如果多个任务下存在同名决策 ID，报错并列出候选。
+    """
+    if task_id:
+        key = f"{task_id}_{decision_id}"
         decision = storage.load(key)
         if decision:
             return key, decision
+        return None, None
+
+    matches = []
+    for key in sorted(storage.list(f"*_{decision_id}")):
+        decision = storage.load(key)
+        if decision:
+            matches.append((key, decision))
+
+    if len(matches) > 1:
+        candidates = ", ".join(key for key, _ in matches)
+        emit_error(f"决策 {decision_id} 在多个任务下存在，请加 --task-id 指定。候选: {candidates}")
+    if matches:
+        return matches[0]
     return None, None
 
 
@@ -57,13 +104,17 @@ def create_decision(
     options: str,
     chosen: str,
     reason: str,
-    assumptions: str
+    assumptions: str,
+    force: bool = False
 ):
     """创建决策履历"""
     if not require_writable("创建决策"):
         return
 
-    if not decision_id:
+    task_id = validate_id(task_id, "task-id")
+    if decision_id:
+        decision_id = validate_id(decision_id, "decision-id")
+    else:
         decision_id = generate_decision_id()
 
     decision = {
@@ -86,6 +137,11 @@ def create_decision(
     config = get_config()
     backend = config.get("storage.backend", "file")
     storage = get_storage("decisions", {"backend": backend, "base_dir": config.get_path("decisions_dir")})
+
+    if storage.exists(storage_key) and not force:
+        emit_error(f"决策 {decision_id} 在任务 {task_id} 下已存在，如需覆盖请加 --force")
+        return
+
     storage.save(storage_key, decision)
 
     log_operation("create", decision_id, "decision", {"task_id": task_id, "title": title})
@@ -98,14 +154,19 @@ def update_assumption(
     assumption_id: int,
     status: str,
     actual: Optional[str] = None,
-    trigger_review: bool = False
+    trigger_review: bool = False,
+    task_id: Optional[str] = None
 ):
     """更新假设验证状态"""
+    decision_id = validate_id(decision_id, "decision-id")
+    if task_id:
+        task_id = validate_id(task_id, "task-id")
+
     config = get_config()
     backend = config.get("storage.backend", "file")
     storage = get_storage("decisions", {"backend": backend, "base_dir": config.get_path("decisions_dir")})
 
-    decision_key, decision = load_decision_by_id(storage, decision_id)
+    decision_key, decision = load_decision_by_id(storage, decision_id, task_id=task_id)
 
     if not decision:
         emit_error(f"决策 {decision_id} 不存在")
@@ -151,14 +212,19 @@ def backfill_result(
     decision_id: str,
     result: str,
     metrics: Optional[str] = None,
-    lessons: Optional[str] = None
+    lessons: Optional[str] = None,
+    task_id: Optional[str] = None
 ):
     """回填决策结果"""
+    decision_id = validate_id(decision_id, "decision-id")
+    if task_id:
+        task_id = validate_id(task_id, "task-id")
+
     config = get_config()
     backend = config.get("storage.backend", "file")
     storage = get_storage("decisions", {"backend": backend, "base_dir": config.get_path("decisions_dir")})
 
-    decision_key, decision = load_decision_by_id(storage, decision_id)
+    decision_key, decision = load_decision_by_id(storage, decision_id, task_id=task_id)
 
     if not decision:
         emit_error(f"决策 {decision_id} 不存在")
@@ -182,13 +248,17 @@ def backfill_result(
     emit_json(True, decision_id=decision_id, message=f"决策 #{decision_id} 结果已回填")
 
 
-def get_decision(decision_id: str):
+def get_decision(decision_id: str, task_id: Optional[str] = None):
     """查询决策"""
+    decision_id = validate_id(decision_id, "decision-id")
+    if task_id:
+        task_id = validate_id(task_id, "task-id")
+
     config = get_config()
     backend = config.get("storage.backend", "file")
     storage = get_storage("decisions", {"backend": backend, "base_dir": config.get_path("decisions_dir")})
 
-    _, decision = load_decision_by_id(storage, decision_id)
+    _, decision = load_decision_by_id(storage, decision_id, task_id=task_id)
 
     if not decision:
         emit_error(f"决策 {decision_id} 不存在")
@@ -199,6 +269,9 @@ def get_decision(decision_id: str):
 
 def list_decisions(task_id: Optional[str] = None):
     """列出决策"""
+    if task_id:
+        task_id = validate_id(task_id, "task-id")
+
     config = get_config()
     backend = config.get("storage.backend", "file")
     storage = get_storage("decisions", {"backend": backend, "base_dir": config.get_path("decisions_dir")})
@@ -231,10 +304,12 @@ def main():
     create_parser.add_argument("--chosen", required=True, help="最终选择")
     create_parser.add_argument("--reason", required=True, help="决策依据")
     create_parser.add_argument("--assumptions", required=True, help="假设清单（逗号分隔）")
+    create_parser.add_argument("--force", action="store_true", help="决策已存在时显式覆盖")
 
     # update-assumption 命令
     update_parser = subparsers.add_parser("update-assumption", help="更新假设验证状态")
     update_parser.add_argument("--decision-id", required=True, help="决策ID")
+    update_parser.add_argument("--task-id", help="任务ID（可选，多任务存在同名决策时必须指定）")
     update_parser.add_argument("--assumption-id", type=int, required=True, help="假设ID")
     update_parser.add_argument("--status", required=True, choices=["验证", "证伪", "部分验证"], help="验证状态")
     update_parser.add_argument("--actual", help="实际情况")
@@ -243,6 +318,7 @@ def main():
     # backfill 命令
     backfill_parser = subparsers.add_parser("backfill", help="回填决策结果")
     backfill_parser.add_argument("--decision-id", required=True, help="决策ID")
+    backfill_parser.add_argument("--task-id", help="任务ID（可选，多任务存在同名决策时必须指定）")
     backfill_parser.add_argument("--result", required=True, choices=["成功", "失败", "部分成功"], help="结果")
     backfill_parser.add_argument("--metrics", help="量化指标")
     backfill_parser.add_argument("--lessons", help="经验教训")
@@ -250,6 +326,7 @@ def main():
     # get 命令
     get_parser = subparsers.add_parser("get", help="查询决策")
     get_parser.add_argument("--decision-id", required=True, help="决策ID")
+    get_parser.add_argument("--task-id", help="任务ID（可选，多任务存在同名决策时必须指定）")
 
     # list 命令
     list_parser = subparsers.add_parser("list", help="列出决策")
@@ -265,7 +342,8 @@ def main():
             args.options,
             args.chosen,
             args.reason,
-            args.assumptions
+            args.assumptions,
+            force=args.force
         )
     elif args.command == "update-assumption":
         update_assumption(
@@ -273,17 +351,19 @@ def main():
             args.assumption_id,
             args.status,
             args.actual,
-            args.trigger_review
+            args.trigger_review,
+            task_id=args.task_id
         )
     elif args.command == "backfill":
         backfill_result(
             args.decision_id,
             args.result,
             args.metrics,
-            args.lessons
+            args.lessons,
+            task_id=args.task_id
         )
     elif args.command == "get":
-        get_decision(args.decision_id)
+        get_decision(args.decision_id, task_id=args.task_id)
     elif args.command == "list":
         list_decisions(args.task_id)
     else:

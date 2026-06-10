@@ -12,6 +12,7 @@ memory_sync.py - OPC Team 三级记忆系统
 """
 
 import json
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, Dict, List
@@ -19,6 +20,7 @@ import argparse
 
 from config import get_config
 from runtime import emit_json, emit_error, require_writable, log_operation
+from storage import get_storage
 
 
 # ==================== 工具函数 ====================
@@ -33,13 +35,6 @@ def get_memory_dir() -> Path:
 def get_memory_file() -> Path:
     """获取 MEMORY.md 文件路径"""
     return get_config().get_path("data_dir") / "MEMORY.md"
-
-
-def get_decision_dir() -> Path:
-    """获取决策目录"""
-    decision_dir = get_config().get_path("decisions_dir")
-    decision_dir.mkdir(parents=True, exist_ok=True)
-    return decision_dir
 
 
 def load_l0_memory(task_id: str) -> List[str]:
@@ -225,41 +220,74 @@ def read_memory(level: str, task_id: Optional[str] = None, category: Optional[st
             emit_json(True, level="L2", data=l2_data)
 
 
+def build_memory_entry(task_id: str) -> str:
+    """构建某个任务的 MEMORY.md 条目（摘要 + 决策履历）。
+
+    决策履历通过 storage 抽象读取，文件后端与 SQLite 后端行为一致。
+    """
+    l1_data = load_l1_memory()
+    task_summary = l1_data.get(task_id, {}).get("summary", "无摘要")
+
+    config = get_config()
+    backend = config.get("storage.backend", "file")
+    storage = get_storage("decisions", {"backend": backend, "base_dir": config.get_path("decisions_dir")})
+
+    decisions = []
+    for key in sorted(storage.list(f"{task_id}_*")):
+        dec = storage.load(key)
+        if dec:
+            decisions.append(f"- 决策 #{dec['decision_id']}: {dec['title']} → {dec['chosen']}")
+
+    entry = f"## 任务 {task_id} ({datetime.now().strftime('%Y-%m-%d')})\n\n"
+    entry += f"**摘要**: {task_summary}\n"
+
+    if decisions:
+        entry += "\n**决策履历**:\n"
+        entry += "\n".join(decisions) + "\n"
+
+    return entry
+
+
+def write_memory_entry(task_id: str) -> Dict:
+    """把任务条目写入 MEMORY.md（按 task_id 幂等：已有条目则替换，否则追加）。
+
+    返回结果字典，不输出 JSON。供 task_flow 等调用方内嵌结果使用。
+    """
+    memory_file = get_memory_file()
+    memory_file.parent.mkdir(parents=True, exist_ok=True)
+
+    entry = build_memory_entry(task_id)
+    content = memory_file.read_text(encoding="utf-8") if memory_file.exists() else ""
+
+    # 匹配同一任务的旧条目：从 "## 任务 {task_id} (" 到下一个 "## " 标题或文件结尾。
+    pattern = re.compile(
+        rf"^## 任务 {re.escape(task_id)} \(.*?(?=^## |\Z)",
+        re.MULTILINE | re.DOTALL
+    )
+    replaced = bool(pattern.search(content))
+
+    if replaced:
+        content = pattern.sub(lambda _m: entry + "\n", content, count=1)
+    else:
+        if content and not content.endswith("\n"):
+            content += "\n"
+        content += "\n" + entry
+
+    memory_file.write_text(content, encoding="utf-8")
+
+    log_operation("sync_to_memory_md", task_id, "memory", {"task_id": task_id, "replaced": replaced})
+
+    return {"task_id": task_id, "file": str(memory_file), "replaced": replaced}
+
+
 def sync_to_memory_md(task_id: str):
     """同步到 MEMORY.md。"""
     if not require_writable("同步记忆"):
         return
 
-    memory_file = get_memory_file()
+    result = write_memory_entry(task_id)
 
-    # 读取任务相关数据
-    l1_data = load_l1_memory()
-    task_summary = l1_data.get(task_id, {}).get("summary", "无摘要")
-
-    # 读取决策履历
-    decision_dir = get_decision_dir()
-    decisions = []
-    if decision_dir.exists():
-        for dec_file in decision_dir.glob(f"{task_id}_*.json"):
-            with open(dec_file, "r", encoding="utf-8") as f:
-                dec = json.load(f)
-                decisions.append(f"- 决策 #{dec['decision_id']}: {dec['title']} → {dec['chosen']}")
-
-    # 构建新条目
-    new_entry = f"\n## 任务 {task_id} ({datetime.now().strftime('%Y-%m-%d')})\n\n"
-    new_entry += f"**摘要**: {task_summary}\n\n"
-
-    if decisions:
-        new_entry += "**决策履历**:\n"
-        new_entry += "\n".join(decisions) + "\n"
-
-    # 追加到文件
-    with open(memory_file, "a", encoding="utf-8") as f:
-        f.write(new_entry)
-
-    log_operation("sync_to_memory_md", task_id, "memory", {"task_id": task_id})
-
-    emit_json(True, task_id=task_id, file=str(memory_file), message=f"任务 {task_id} 已同步到 MEMORY.md")
+    emit_json(True, **result, message=f"任务 {task_id} 已同步到 MEMORY.md")
 
 
 # ==================== CLI 入口 ====================
