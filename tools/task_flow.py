@@ -40,6 +40,7 @@ class TaskState(str, Enum):
     COMPLETED = "completed"
     BLOCKED = "blocked"
     ESCALATED = "escalated"
+    CANCELLED = "cancelled"
 
 
 # ==================== 状态转换规则 ====================
@@ -51,7 +52,12 @@ STATE_TRANSITIONS = {
     TaskState.IN_EXECUTION: [TaskState.COMPLETED, TaskState.BLOCKED, TaskState.ESCALATED],
     TaskState.IN_DEBATE: [TaskState.IN_EXECUTION, TaskState.COMPLETED, TaskState.BLOCKED],
     TaskState.BLOCKED: [TaskState.IN_STRATEGY, TaskState.IN_EXECUTION, TaskState.ESCALATED],
+    # escalated 不是死胡同：升级处理后可恢复执行，也可以显式取消。
+    TaskState.ESCALATED: [TaskState.IN_EXECUTION, TaskState.CANCELLED],
 }
+
+# 终态：无出边，SLA 检查跳过。
+TERMINAL_STATES = {TaskState.COMPLETED.value, TaskState.CANCELLED.value}
 
 # SLA 时间限制
 SLA_LIMITS = {
@@ -113,8 +119,10 @@ def create_task(title: str, ceo_input: str) -> str:
     return task_id
 
 
-def assess_task(task_id: str, level: str, reason: str, agent_profile: str = None):
+def assess_task(task_id: str, level: str, reason: str, agent_profile: str = None, actor: str = None):
     """任务定级"""
+    # 预设角色名只做默认兜底，--actor 显式传入时记录实际操作者。
+    actor = (actor or "").strip() or "COO魏明远"
     config = get_config()
     backend = config.get("storage.backend", "file")
     storage = get_storage("tasks", {"backend": backend, "base_dir": config.get_path("tasks_dir")})
@@ -144,8 +152,7 @@ def assess_task(task_id: str, level: str, reason: str, agent_profile: str = None
         task["updated_at"] = datetime.now().isoformat()
         task["assessment_reason"] = reason
         task["actors"].append({
-            "role": "COO",
-            "name": "魏明远",
+            "actor": actor,
             "action": "定级",
             "level": level,
             "orchestration_profile": agent_profile,
@@ -172,7 +179,7 @@ def assess_task(task_id: str, level: str, reason: str, agent_profile: str = None
 
     try:
         from agent_ops import sync_agent_from_task
-        sync_agent_from_task(task, actor="COO魏明远", message=f"完成任务定级：{reason}")
+        sync_agent_from_task(task, actor=actor, message=f"完成任务定级：{reason}")
     except (Exception, SystemExit):
         # sync_agent_from_task / sync_to_memory_md call emit_error which raises
         # SystemExit. SystemExit is not an Exception so a bare `except Exception`
@@ -221,15 +228,15 @@ def transition_state(task_id: str, to_state: str, actor: str):
             emit_error(f"非法状态转换: {from_state} -> {to_state}。允许的目标状态: {allowed_list}")
             return
 
-        # L3 任务完成前必须有决策履历
-        if to_state == TaskState.COMPLETED.value and task.get("level") == TaskLevel.L3.value:
+        # L3 及以上任务完成前必须有决策履历
+        if to_state == TaskState.COMPLETED.value and task.get("level") in (TaskLevel.L3.value, TaskLevel.L4.value):
             decision_storage = get_storage("decisions", {
                 "backend": config.get("storage.backend", "file"),
                 "base_dir": config.get_path("decisions_dir")
             })
             task_decisions = decision_storage.list(f"{task_id}_D*")
             if not task_decisions:
-                emit_error("L3 任务必须创建决策履历才能完成")
+                emit_error("L3 及以上任务必须创建决策履历才能完成")
                 return
 
         if not require_writable("状态流转"):
@@ -263,15 +270,19 @@ def transition_state(task_id: str, to_state: str, actor: str):
         # leaks it past best-effort hooks and aborts the caller mid-stream.
         pass
 
-    # 如果开启了 auto_sync_memory 且任务完成，同步到 MEMORY.md
+    # 如果开启了 auto_sync_memory 且任务完成，同步到 MEMORY.md。
+    # 同步结果内嵌到本次 transition 的 JSON 输出里，保持 stdout 单 JSON 对象契约。
+    sync_result = None
     if to_state == TaskState.COMPLETED.value and config.get("features.auto_sync_memory", False):
         try:
-            from memory_sync import sync_to_memory_md
-            sync_to_memory_md(task_id)
+            from memory_sync import write_memory_entry
+            sync_result = {"success": True, **write_memory_entry(task_id)}
         except (Exception, SystemExit):
-            pass  # 忽略同步失败
+            sync_result = {"success": False, "error": "记忆同步失败"}
 
-    emit_json(True, task_id=task_id, from_state=from_state, to_state=to_state, message=f"任务 {task_id} 状态已更新")
+    extra = {"memory_sync": sync_result} if sync_result is not None else {}
+    emit_json(True, task_id=task_id, from_state=from_state, to_state=to_state,
+              message=f"任务 {task_id} 状态已更新", **extra)
 
 
 def report_progress(task_id: str, message: str, progress: int, agent_id: str = None):
@@ -351,10 +362,21 @@ def get_status(task_id: str):
 
 
 def check_sla(task_id: str):
-    """检查 SLA 并自动升级"""
+    """检查 SLA 并自动升级。
+
+    每条路径都输出带状态字段的 JSON：
+    - action=skipped / reason=sla_check_disabled：SLA 检查已关闭
+    - 任务不存在：emit_error（success=false，退出码 1）
+    - action=none / reason=terminal_or_escalated：任务已完成/已取消/已升级
+    - action=none / reason=not_assessed：任务未定级，无 SLA 限制
+    - action=none / sla_status=正常|超期：未达自动升级阈值（2 倍 SLA）
+    - action=escalated：已自动升级
+    """
     config = get_config()
 
     if not config.get("features.sla_check_enabled", True):
+        emit_json(True, task_id=task_id, action="skipped", reason="sla_check_disabled",
+                  message="SLA 检查已关闭（features.sla_check_enabled=false）")
         return
 
     backend = config.get("storage.backend", "file")
@@ -362,16 +384,22 @@ def check_sla(task_id: str):
 
     task = storage.load(task_id)
     if not task:
+        emit_error(f"任务 {task_id} 不存在")
         return
 
-    if task["state"] in [TaskState.COMPLETED.value, TaskState.ESCALATED.value]:
+    if task["state"] in [*TERMINAL_STATES, TaskState.ESCALATED.value]:
+        emit_json(True, task_id=task_id, action="none", reason="terminal_or_escalated",
+                  state=task["state"], message=f"任务 {task_id} 状态为 {task['state']}，无需 SLA 检查")
         return
 
     created_at = datetime.fromisoformat(task["created_at"])
     elapsed = datetime.now() - created_at
+    elapsed_minutes = int(elapsed.total_seconds() / 60)
     level = TaskLevel(task["level"]) if task["level"] else None
 
     if not level:
+        emit_json(True, task_id=task_id, action="none", reason="not_assessed",
+                  message=f"任务 {task_id} 未定级，无 SLA 限制")
         return
 
     sla_limit = SLA_LIMITS[level]
@@ -386,13 +414,20 @@ def check_sla(task_id: str):
         task["actors"].append({
             "actor": "System",
             "action": "自动升级",
-            "reason": f"SLA 超期 {int(elapsed.total_seconds() / 60)} 分钟",
+            "reason": f"SLA 超期 {elapsed_minutes} 分钟",
             "timestamp": datetime.now().isoformat()
         })
         storage.save(task_id, task)
         log_operation("escalate", task_id, "task", {"reason": "SLA超期"})
 
-        emit_json(True, task_id=task_id, action="escalated", message=f"任务 {task_id} 因 SLA 超期已自动升级")
+        emit_json(True, task_id=task_id, action="escalated", elapsed_minutes=elapsed_minutes,
+                  message=f"任务 {task_id} 因 SLA 超期已自动升级")
+        return
+
+    sla_status = "超期" if elapsed > sla_limit else "正常"
+    emit_json(True, task_id=task_id, action="none", reason="within_escalation_threshold",
+              sla_status=sla_status, elapsed_minutes=elapsed_minutes,
+              message=f"任务 {task_id} SLA 状态：{sla_status}，未达自动升级阈值")
 
 
 # ==================== CLI 入口 ====================
@@ -412,6 +447,7 @@ def main():
     assess_parser.add_argument("--level", required=True, choices=["L1", "L2", "L3", "L4"], help="任务级别")
     assess_parser.add_argument("--reason", required=True, help="定级原因")
     assess_parser.add_argument("--agent-profile", choices=["daily", "important", "full"], help="显式指定编组档位")
+    assess_parser.add_argument("--actor", help="操作者（默认 COO魏明远）")
 
     # transition
     transition_parser = subparsers.add_parser("transition", help="状态流转")
@@ -439,7 +475,7 @@ def main():
     if args.command == "create":
         create_task(args.title, args.ceo_input)
     elif args.command == "assess":
-        assess_task(args.task_id, args.level, args.reason, agent_profile=args.agent_profile)
+        assess_task(args.task_id, args.level, args.reason, agent_profile=args.agent_profile, actor=args.actor)
     elif args.command == "transition":
         transition_state(args.task_id, args.to, args.actor)
     elif args.command == "progress":
