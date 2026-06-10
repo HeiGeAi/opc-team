@@ -53,7 +53,7 @@ Subcommands:
   task        Task state machine (create, assess, transition, progress, status)
   decision    Decision log (create, update-assumption, backfill, get, list)
   risk        Risk scoring (assess, update, list, get)
-  memory      Three-tier memory sync (init, snapshot, summarize)
+  memory      Three-tier memory sync (init, write, compress, archive, read, sync)
   agent       Main/sub-agent orchestration & model routing
   catalog     Agent catalog management (lint, scaffold-pack, list)
   convert     Export agent catalog to platform integrations

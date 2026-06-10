@@ -11,13 +11,11 @@ runtime.py - OPC Team 统一运行时
 """
 
 import json
-import os
-import sys
 import threading
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Dict
 
 from config import get_config
 
@@ -107,9 +105,12 @@ def operation_lock(lock_path: Path):
 # ==================== 只读模式检查 ====================
 
 def require_writable(operation: str = "操作") -> bool:
-    """检查是否允许写操作，只读模式下拒绝"""
+    """检查是否允许写操作，只读模式下拒绝。
+
+    兼容两种配置写法：推荐的 features.readonly_mode 和顶层 readonly_mode。
+    """
     config = get_config()
-    if config.get("features.readonly_mode", False):
+    if config.get("features.readonly_mode", False) or config.get("readonly_mode", False):
         emit_error(f"{operation}在只读模式下被拒绝（readonly_mode=true）")
         return False
     return True
@@ -211,113 +212,3 @@ def log_operation(operation: str, entity_id: str, entity_type: str, details: Dic
     }
     with open(log_file, "a", encoding="utf-8") as f:
         f.write(json.dumps(log_entry, ensure_ascii=False) + "\n")
-
-
-# ==================== 存储接口 ====================
-
-def get_storage_path(entity_type: str) -> Path:
-    """获取实体存储目录"""
-    config = get_config()
-    type_to_key = {
-        "task": "tasks_dir",
-        "decision": "decisions_dir",
-        "risk": "risks_dir",
-        "memory": "memory_dir",
-        "agent": "agents_dir",
-        "assignment": "assignments_dir"
-    }
-    key = type_to_key.get(entity_type)
-    if not key:
-        raise ValueError(f"未知实体类型: {entity_type}")
-    return config.get_path(key)
-
-
-def save_entity(entity_type: str, entity_id: str, data: Dict) -> None:
-    """
-    统一保存实体
-
-    Args:
-        entity_type: 实体类型 (task, decision, risk)
-        entity_id: 实体 ID
-        data: 实体数据（必须包含 entity_id）
-    """
-    if not require_writable(f"保存{entity_type}"):
-        return
-
-    storage_dir = get_storage_path(entity_type)
-    storage_dir.mkdir(parents=True, exist_ok=True)
-
-    file_path = storage_dir / f"{entity_id}.json"
-
-    with open(file_path, "w", encoding="utf-8") as f:
-        lock_file(f)
-        try:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-        finally:
-            unlock_file(f)
-
-
-def load_entity(entity_type: str, entity_id: str) -> Optional[Dict]:
-    """
-    统一加载实体
-
-    Args:
-        entity_type: 实体类型
-        entity_id: 实体 ID
-
-    Returns:
-        实体数据或 None
-    """
-    storage_dir = get_storage_path(entity_type)
-    file_path = storage_dir / f"{entity_id}.json"
-
-    if not file_path.exists():
-        return None
-
-    with open(file_path, "r", encoding="utf-8") as f:
-        lock_file(f, shared=True)
-        try:
-            return json.load(f)
-        finally:
-            unlock_file(f)
-
-
-def list_entities(entity_type: str) -> list:
-    """
-    列出所有实体
-
-    Args:
-        entity_type: 实体类型
-
-    Returns:
-        实体 ID 列表
-    """
-    storage_dir = get_storage_path(entity_type)
-    if not storage_dir.exists():
-        return []
-
-    files = list(storage_dir.glob("*.json"))
-    return sorted([f.stem for f in files])
-
-
-def delete_entity(entity_type: str, entity_id: str) -> bool:
-    """
-    删除实体
-
-    Args:
-        entity_type: 实体类型
-        entity_id: 实体 ID
-
-    Returns:
-        是否删除成功
-    """
-    if not require_writable(f"删除{entity_type}"):
-        return False
-
-    storage_dir = get_storage_path(entity_type)
-    file_path = storage_dir / f"{entity_id}.json"
-
-    if file_path.exists():
-        file_path.unlink()
-        return True
-    return False

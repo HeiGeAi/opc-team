@@ -86,7 +86,7 @@ def _make_config(data_dir: Path) -> dict:
                 },
                 "full": {
                     "label": "满编协同",
-                    "sub_agent_target": 20,
+                    "sub_agent_target": 19,
                     "agent_ids": "__all_sub_agents__",
                 },
             },

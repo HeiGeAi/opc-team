@@ -93,7 +93,7 @@ DEFAULT_DISPATCH_PROFILES = {
     "full": {
         "label": "满编协同",
         "description": "用户指定或高复杂任务启用全部角色梯队，按当前 pack 的满编能力协同。",
-        "sub_agent_target": 20,
+        "sub_agent_target": 19,
         "agent_ids": PROFILE_ALL_SUB_AGENTS,
         "task_levels": ["L4_DEBATE"]
     }

@@ -11,7 +11,9 @@ dashboard.py - OPC Team 主从 Agent 集成看板
 
 import argparse
 import json
+import logging
 import mimetypes
+import traceback
 from collections import Counter, defaultdict
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -316,12 +318,20 @@ def _coerce_optional_float(value):
     return float(value)
 
 
+logger = logging.getLogger("opc.dashboard")
+
+
 def _safe_call(func, *args, **kwargs):
+    func_name = getattr(func, "__name__", str(func))
     try:
         return func(*args, **kwargs), None
-    except SystemExit:
+    except SystemExit as exc:
+        # 工具层 emit_error 抛 SystemExit，错误 JSON 已打到 stdout；
+        # 这里记录调用点和退出码，便于排查。
+        logger.warning("dashboard 调用 %s 失败（SystemExit code=%s）", func_name, exc.code)
         return None, "操作失败，请检查输入参数。"
     except Exception as exc:  # pragma: no cover - 防御性兜底
+        logger.error("dashboard 调用 %s 异常: %s\n%s", func_name, exc, traceback.format_exc())
         return None, str(exc)
 
 

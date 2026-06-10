@@ -63,9 +63,12 @@ class Config:
             raise ValueError(f"配置文件不是合法 JSON: {self.config_file}") from exc
 
     def _create_default_config(self) -> Dict:
-        """创建默认配置"""
+        """构建默认配置（只在内存中生效，不落盘）。
+
+        读路径（get/info 等）不产生副作用；只有显式 init/set 才写 config.json。
+        """
         default = {
-            "version": "4.6.0",
+            "version": "4.7.0",
             "platform": "generic",  # generic / claude_code / openclaw / cursor / api
             "paths": {
                 "data_dir": str(Path.cwd() / "data"),
@@ -132,7 +135,7 @@ class Config:
                     },
                     "full": {
                         "label": "满编协同",
-                        "sub_agent_target": 20,
+                        "sub_agent_target": 19,
                         "agent_ids": "__all_sub_agents__"
                     }
                 },
@@ -154,11 +157,6 @@ class Config:
                 }
             }
         }
-
-        # 保存默认配置
-        self.config_file.parent.mkdir(parents=True, exist_ok=True)
-        with open(self.config_file, "w", encoding="utf-8") as f:
-            json.dump(default, f, indent=2, ensure_ascii=False)
 
         return default
 
@@ -214,6 +212,7 @@ class Config:
 
     def _save_config(self) -> None:
         """保存配置文件"""
+        self.config_file.parent.mkdir(parents=True, exist_ok=True)
         with open(self.config_file, "w", encoding="utf-8") as f:
             json.dump(self.data, f, indent=2, ensure_ascii=False)
 
