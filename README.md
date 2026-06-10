@@ -625,7 +625,9 @@ python3 tools/decision_log.py create \
   --task-id T001 \
   --decision-id D001 \
   --title "定价策略" \
+  --options "方案A,方案B" \
   --chosen "方案B" \
+  --reason "高净值用户付费更明确" \
   --assumptions "假设1:获客成本<50元,假设2:转化率>5%"
 
 # 6. 进入执行阶段
