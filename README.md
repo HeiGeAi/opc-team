@@ -702,3 +702,7 @@ MIT
 ## 🙏 致谢
 
 本项目受 [edict](https://github.com/cft0808/edict) 启发，采用了状态机 + CLI 工具的架构思想。
+
+## 更多开源工具
+
+本项目属于黑哥 AI 的开源武器库。全部开源项目的清单、用途和协议,见 [heigeai.com/opensource](https://www.heigeai.com/opensource/)。
