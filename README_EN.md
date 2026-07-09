@@ -152,3 +152,7 @@ See [ROADMAP.md](./ROADMAP.md) for what's planned. Highlights:
 ## License
 
 MIT — see [LICENSE](./LICENSE).
+
+## More open-source tools
+
+This project is part of the HeiGe AI open-source arsenal. Browse all projects with purpose and license at [heigeai.com/opensource](https://www.heigeai.com/en/opensource/).
