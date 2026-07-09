@@ -1,7 +1,7 @@
 # OPC Team — Cross-Platform Agent Ops Framework
 
 [![CI](https://github.com/HeiGeAi/opc-team/actions/workflows/ci.yml/badge.svg)](https://github.com/HeiGeAi/opc-team/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-v4.7.0-111827.svg)](./README.md)
+[![Version](https://img.shields.io/badge/version-v4.8.0-111827.svg)](./README.md)
 [![Python](https://img.shields.io/badge/python-3.9%2B-3776AB.svg?logo=python&logoColor=white)](./pyproject.toml)
 [![License](https://img.shields.io/badge/license-MIT-059669.svg)](./LICENSE)
 
@@ -21,7 +21,9 @@ OPC Team is **not** another role-playing prompt template. It is a small Python f
 - **Three-tier memory** (`L0 working → L1 short-term → L2 long-term`) that survives across sessions
 - **Cross-platform file locking** (`fcntl` on Unix, `filelock` fallback on Windows)
 - **Pack-aware agent catalog**: drop role definitions into `agents/*.md` or `agents/<pack>/*.md`, validate with `opc catalog lint`, switch with `opc agent switch-pack`
-- **Adaptive orchestration**: `daily / important / full` profiles dispatch `3 / 8 / 19` sub-agents (the `full` profile is all 20 roles: CEO + 19 sub-agents) based on task intensity
+- **Adaptive orchestration**: `daily / important / full` profiles dispatch `3 / 9 / 20` sub-agents (the `full` profile is all 21 roles: CEO + 20 sub-agents) based on task intensity
+- **Deal Guard** (`opc dealguard scan`): a zero-dependency pre-flight scanner that flags fatal deal patterns (revenue-share bait, no-prepayment, red-line scope, compliance traps, scope-creep wishlists, project-drift, thread contention) before you take on work, returning the rule and the fix for every hit
+- **Red Team Gate**: a dedicated `redteam` adversary role that independently refutes recommended decisions on L3/L4 tasks before they are committed, killing plausible-but-wrong conclusions
 
 Every state change, decision update, and risk assessment is logged as JSON under `data/` so the entire run can be replayed.
 
@@ -121,7 +123,7 @@ opc task status --task-id T001
 opc-team/
 ├── tools/                 # Python engine (state machine, decisions, risks, memory, agents)
 ├── tools/cli.py           # `opc` console script entry point
-├── agents/                # Role catalog (default pack: 20 roles)
+├── agents/                # Role catalog (default pack: 21 roles)
 ├── strategy/              # Runbooks (OPC-Micro, OPC-Sprint, OPC-Control)
 ├── adapters/              # Platform integration (Claude Code, OpenClaw, Cursor, API)
 ├── dashboard/             # Web UI (one HTML + tools/dashboard.py serve)

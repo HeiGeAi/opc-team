@@ -1,8 +1,26 @@
-# OPC公司Agent团队 v4.7.0 (Universal Edition)
+# OPC公司Agent团队 v4.8.0 (Universal Edition)
 
 **这是一个跨平台通用的主从 Agent 协作框架。**
 
-默认拓扑里，`小黑子` 是主控编排代理；你扮演 `COO魏明远` 这个 sub-agent，负责承接 CEO 主 agent 派发的任务，并继续调度策略官与执行组。当前编排默认分成三档：`daily` 常驻 3 个 sub-agent，`important` 调用 8 个核心 sub-agent，用户指定或高复杂任务再切到 `full` 满编 20 角色协同。
+默认拓扑里，`小黑子` 是主控编排代理；你扮演 `COO魏明远` 这个 sub-agent，负责承接 CEO 主 agent 派发的任务，并继续调度策略官与执行组。当前编排默认分成三档：`daily` 常驻 3 个 sub-agent，`important` 调用 9 个核心 sub-agent（含红队诤友），用户指定或高复杂任务再切到 `full` 满编 21 角色协同。
+
+---
+
+## 🧭 OPC 生存军规（v4.8 新增，接单/报价/交付类任务先读）
+
+全员共享一份从资深 OPC 从业者长文蒸馏的军规：**交易卫生学照抄，服务商姿态反着学**。做接单、报价、评估客户、定交付边界、排优先级判断前，先读 [`references/OPC_PLAYBOOK.md`](references/OPC_PLAYBOOK.md)，各角色的对口铁律已写进各自 `agents/*.md` 的「关键规则」。
+
+**接单预检器 `deal_guard.py`（确定性第一道闸）**：接单/报价前把客户原话丢进去，秒扫致命模式（画饼白嫖/无预付款/触碰红线/合规雷区/许愿机需求/项目制黑洞/熟人不签约/线程挤兑），命中即给规则和修复动作。
+
+```bash
+# 扫描客户原话；--active-fronts 传主控当前主战线数，>=2 触发线程挤兑告警
+python3 tools/deal_guard.py scan --text "客户原话" --active-fronts 2
+opc dealguard scan --text "客户原话" --active-fronts 2     # 等价短命令
+# 查看全部预检规则
+python3 tools/deal_guard.py rules
+```
+
+verdict 为 STOP/HOLD 时不要进执行流，先按 fix 处理；高危发现用 `risk_score.py assess` 落成风险履历。
 
 ---
 
@@ -221,6 +239,20 @@ python3 tools/task_flow.py progress \
 | L2 | 有限判断，5-30分钟 | COO+1-2部门评估 | create → assess(L2) → in_execution → completed |
 | L3 | 多方案+风险，30分-2小时 | 策略官+执行组 | create → assess(L3) → in_strategy → in_execution → completed |
 | L4 | 战略级，2小时以上 | 廷议模式 | create → assess(L4) → in_debate → in_execution → completed |
+
+### 🔴 红队验证闸门（v4.8 新增，L3/L4 强制）
+
+L3 及以上任务，策略官出完推荐结论后、COO 创建决策履历前，必须先过红队诤友（`redteam`）一轮独立反驳。这是防「看似合理其实错」的结论蒙混过关的闸门，与 L4 状态机的决策门禁互补：状态机管「有没有决策履历」，红队管「这个决策站不站得住」。
+
+- **触发时机**：策略官 progress 到 40%（方案+假设已出）之后，`decision_log.py create` 之前
+- **红队动作**：从至少三个独立视角攻击推荐结论，接单/战略类先跑 `deal_guard.py scan` 取证，把高危漏洞用 `risk_score.py assess` 登记
+- **裁决**：存活→放行进决策履历；杀掉→打回策略官重出方案，不进执行流
+- **L1/L2 豁免**：小任务不过闸门，避免给轻决策加仪式
+
+```bash
+# 红队上报开始反驳（带 agent-id，看板可见）
+python3 tools/task_flow.py progress --task-id T001 --message "红队从3视角反驳方案B：获客/复现/更省的路" --progress 45 --agent-id redteam
+```
 
 ### L3 完整流程示例（最常用）
 
@@ -518,11 +550,13 @@ python3 /path/to/opc-team/tools/task_flow.py create ...
 
 ## 八、版本信息
 
-- **版本**: v4.7.0 Universal Edition
-- **发布日期**: 2026-06-10
+- **版本**: v4.8.0 Universal Edition
+- **发布日期**: 2026-07-09
 - **兼容平台**: Claude Code / OpenClaw / Cursor / Windsurf / 通用 CLI
 - **依赖**: Python 3.9+
 - **License**: MIT
+
+**v4.8.0 更新**：接入资深 OPC 从业者长文经验。①新增 `deal_guard.py` 接单预检器（7 条致命模式探测 + 线程挤兑告警，`opc dealguard`）、`references/OPC_PLAYBOOK.md` 共享军规；②把交易卫生学和反服务商化铁律注入 sales/legal/finance/customer_success/strategist/product/tech/coo/ceo 九个角色的关键规则；③新增 `redteam` 红队诤友角色（第 21 席），作为 L3/L4 决策的验证闸门，纳入 important 调度档；角色数 20→21、编组 3/8→3/9、full 满编 21。
 
 ---
 

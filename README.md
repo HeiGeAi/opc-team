@@ -3,7 +3,7 @@
 ![OPC Team agent ops hero](./assets/opc-team-hero.png)
 
 [![CI](https://github.com/HeiGeAi/opc-team/actions/workflows/ci.yml/badge.svg)](https://github.com/HeiGeAi/opc-team/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-v4.7.0-111827.svg)](./README.md)
+[![Version](https://img.shields.io/badge/version-v4.8.0-111827.svg)](./README.md)
 [![Python](https://img.shields.io/badge/python-3.9%2B-3776AB.svg?logo=python&logoColor=white)](./pyproject.toml)
 [![Platforms](https://img.shields.io/badge/platform-Claude%20Code%20%7C%20OpenClaw%20%7C%20Cursor%20%7C%20Windsurf%20%7C%20API-0F766E.svg)](./DEPLOYMENT.md)
 [![License](https://img.shields.io/badge/license-MIT-059669.svg)](./LICENSE)
@@ -12,7 +12,7 @@
 
 **English**: [README_EN.md](./README_EN.md) · **Examples**: [examples/](./examples/) · **Roadmap**: [ROADMAP.md](./ROADMAP.md)
 
-**OPC Team** 是一个跨平台的 Agent 协作框架，目标不是再造一个角色扮演 prompt，而是给 AI 执行过程加上明确的工程化约束：任务状态机、决策履历、风险量化、三级记忆，以及一组可审计的 CLI 工具。它适合跑在 **Claude Code / OpenClaw / Cursor / Windsurf / 通用 CLI / API 工作流** 上，让 Agent 的执行过程从“看起来会做”变成“真的可控、可回放、可治理”。当前默认编排策略已经升级为 `3 / 8 / 20` 三档弹性编组，也就是日常任务保留常驻小队，重要任务自动扩到核心队列，复杂任务再拉满全部角色协同。
+**OPC Team** 是一个跨平台的 Agent 协作框架，目标不是再造一个角色扮演 prompt，而是给 AI 执行过程加上明确的工程化约束：任务状态机、决策履历、风险量化、三级记忆，以及一组可审计的 CLI 工具。它适合跑在 **Claude Code / OpenClaw / Cursor / Windsurf / 通用 CLI / API 工作流** 上，让 Agent 的执行过程从“看起来会做”变成“真的可控、可回放、可治理”。当前默认编排策略已经升级为 `3 / 9 / 21` 三档弹性编组，也就是日常任务保留常驻小队，重要任务自动扩到核心队列（含红队诤友），复杂任务再拉满全部角色协同。
 
 [Quick Start](#-quick-start) · [Platform Matrix](#-支持的平台) · [Deployment Guide](./DEPLOYMENT.md) · [Agent Catalog](./CATALOG.md) · [Skill Manual](./SKILL.md) · [API Schema](./adapters/api.json)
 
@@ -43,12 +43,14 @@
 - **Memory Sync**：把即时记忆、短期摘要、长期经验同步到统一存储。
 - **Config + Storage**：支持平台适配、路径配置、文件存储和 SQLite 存储。
 - **Agent Catalog**：把内置角色定义放到 `agents/*.md` 或 `agents/<pack>/*.md`，用统一 schema + lint 管理角色层。
-- **20-Role Bench**：default pack 内置 20 个可编排角色，覆盖策略、研究、产品、体验、增长、技术、运维、数据、财务、法务、客户成功等链路。
+- **21-Role Bench**：default pack 内置 21 个可编排角色，覆盖策略、研究、红队验证、产品、体验、增长、技术、运维、数据、财务、法务、客户成功等链路。
+- **Deal Guard**：`tools/deal_guard.py`（`opc dealguard`）接单预检器，把资深 OPC 从业者的踩坑经验做成确定性探测器，接单/报价前秒扫画饼白嫖、无预付款、触碰红线、合规雷区、许愿机需求、项目制黑洞、线程挤兑等致命模式，命中即给规则和修复动作。
+- **Red Team Gate**：新增 `redteam` 红队诤友角色，作为 L3/L4 决策的独立反驳闸门，专杀「看似合理其实错」的结论，补上传统角色表缺失的独立验证席位。
 - **Role Packs**：支持把默认角色集复制成新 pack，并在运行时切换不同角色包。
 - **Main/Sub Orchestration**：内置 `CEO主Agent -> sub-agent` 的主从编排结构，支持主 agent 派发子任务。
 - **Agent Board**：本地查看与调度面板，可查看主 agent、sub-agent、当前编组档位、模型路由和最近状态变化，也支持从面板派发任务、调整状态和模型路由。
 - **Model Routing**：允许主 agent 和不同 sub-agent 指定不同 API provider / model；未配置时默认继承宿主平台模型。
-- **Adaptive Orchestration**：支持 `daily / important / full` 三档编组，默认分别对应 `3 / 8 / 20角色` 的协同规模。
+- **Adaptive Orchestration**：支持 `daily / important / full` 三档编组，默认分别对应 `3 / 9 / 21角色` 的协同规模。
 - **Workflow Runbooks**：补充 `OPC-Micro / Sprint / Control` 三种运行模式，以及 handoff/runbook 模板。
 
 ## 编排升级：弹性编组 + 可视化看板 + 多模型路由
@@ -62,9 +64,9 @@
   - `platform_default`：强制使用宿主平台模型
   - `custom_api`：指定独立 provider / model / api_base / api_key_env
 - 默认全局路由是 `platform_default`，也就是“默认用模型本身的模型”。
-- 默认拓扑里 `ceo` 是主 agent，default pack 现在内置 20 个角色，从项目、研究、产品、体验、增长到技术、运维、QA、数据、采购、HR、法务都可直接编排。
-- 编组默认分三档：`daily` 常驻 3 个 sub-agent，`important` 调用 8 个核心 sub-agent，`full` 启用满编 20 角色（`CEO + 19 个 sub-agent`）。
-- 这意味着 OPC 的重点不再是“把 20 个角色全都常驻挂着”，而是让 CEO 主 agent 根据任务强度决定什么时候只动小队，什么时候拉起核心班底，什么时候再满编开战。
+- 默认拓扑里 `ceo` 是主 agent，default pack 现在内置 21 个角色，从项目、研究、红队、产品、体验、增长到技术、运维、QA、数据、采购、HR、法务都可直接编排。
+- 编组默认分三档：`daily` 常驻 3 个 sub-agent，`important` 调用 9 个核心 sub-agent（含红队诤友），`full` 启用满编 21 角色（`CEO + 20 个 sub-agent`）。
+- 这意味着 OPC 的重点不再是“把 21 个角色全都常驻挂着”，而是让 CEO 主 agent 根据任务强度决定什么时候只动小队，什么时候拉起核心班底，什么时候再满编开战。
 
 ## 真实任务跑出来是什么样
 
@@ -94,11 +96,11 @@
 - `strategy/runbooks/` 里提供 `startup-mvp / enterprise-feature / incident-response` 三类场景 runbook。
 - 这样 OPC 不只是“能派发角色”，而是能把不同场景的执行方式固定下来。
 
-## 编组档位：把 20 角色按任务强度弹性调用
+## 编组档位：把 21 角色按任务强度弹性调用
 
 - `daily`：日常常驻 3 个 sub-agent，默认是 `coo / project / strategist`。
-- `important`：重要任务拉起 8 个核心 sub-agent，默认是 `coo / project / strategist / research / product / tech / data / qa`。
-- `full`：用户指定或高复杂任务直接启用满编 20 角色，也就是 `CEO + 19 个 sub-agent` 全量协同。
+- `important`：重要任务拉起 9 个核心 sub-agent，默认是 `coo / project / strategist / redteam / research / product / tech / data / qa`。
+- `full`：用户指定或高复杂任务直接启用满编 21 角色，也就是 `CEO + 20 个 sub-agent` 全量协同。
 - `tools/task_flow.py assess --agent-profile ...` 可以显式指定档位。
 - `tools/agent_ops.py recommend` 可以按任务等级、标题或关键词输出当前推荐编组。
 
@@ -301,10 +303,10 @@ python3 tools/agent_catalog.py manifest --format markdown
 python3 tools/agent_catalog.py scaffold-pack --from-pack default --to-pack enterprise
 ```
 
-当前 `default` pack 的 20 个角色按链路分成几组：
+当前 `default` pack 的 21 个角色按链路分成几组：
 
 - 主控与调度：`ceo`、`coo`、`project`
-- 策略与研究：`strategist`、`research`
+- 策略与研究：`strategist`、`redteam`、`research`
 - 产品与体验：`product`、`ux`
 - 增长与商业化：`marketing`、`growth`、`sales`、`brand`
 - 技术与交付：`tech`、`devops`、`qa`、`data`
@@ -490,8 +492,8 @@ sed -n '1,220p' strategy/runbooks/scenario-enterprise-feature.md
 |------|------|----------|----------|
 | L1 | 简单查询/执行 | `daily`：3 个常驻 sub-agent | <5分钟 |
 | L2 | 有限判断 | `daily`：3 个常驻 sub-agent | 5-30分钟 |
-| L3 | 多方案+风险 | `important`：8 个核心 sub-agent | 30分-2小时 |
-| L4 | 战略级 | `full`：满编 20 角色协同 | 2小时以上 |
+| L3 | 多方案+风险 | `important`：9 个核心 sub-agent | 30分-2小时 |
+| L4 | 战略级 | `full`：满编 21 角色协同 | 2小时以上 |
 
 ---
 

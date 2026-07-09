@@ -2,6 +2,24 @@
 
 所有显著变更按版本记录。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)。
 
+## [4.8.0] — 2026-07-09
+
+### OPC 生存军规接入 + 接单预检器 + 红队诤友席位
+
+蒸馏一位资深 OPC 从业者的长文经验，把「交易卫生学照抄、服务商姿态反着学」的方法论工程化进框架。minor 版本：新增确定性工具、新增角色、新增文档，向后兼容。
+
+#### Added
+
+- **`tools/deal_guard.py` 接单预检器**（`opc dealguard`）：零依赖只读扫描器，接单/报价前扫 7 类致命模式（画饼白嫖、无预付款、触碰交付红线、合规效果宣称、许愿机需求、项目制毛利黑洞、熟人不签约）+ 线程挤兑告警（`--active-fronts`），命中即给规则、修复动作和 severity 裁决（STOP/HOLD/CAUTION/CLEAR）
+- **`agents/redteam.md` 红队诤友角色**（第 21 席）：在决策落地前独立反驳推荐结论，专杀「看似合理其实错」的判断，纳入 `important` 调度档，作为 L3/L4 决策的验证闸门（与状态机的 L4 决策门禁互补）
+- **`references/OPC_PLAYBOOK.md` 共享军规**：13 条铁律分四组（交易卫生学 / 反服务商化 / 护城河标品 / 常被忽略的风险），全员做接单判断前共读
+- 九个角色（sales/legal/finance/customer_success/strategist/product/tech/coo/ceo）的「关键规则」注入对口 OPC 铁律
+
+#### Changed
+
+- 角色数 20 → 21，编组档位 `daily/important/full` 的核心规模 `3 / 8` → `3 / 9`，`full` 满编 sub-agent 数 19 → 20
+- `opc` CLI 新增 `dealguard` 子命令
+
 ## [4.7.0] — 2026-06-10
 
 ### 数据完整性、状态机与接口加固

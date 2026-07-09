@@ -18,7 +18,7 @@ OPC Team 现在把内置角色定义从 `tools/agent_ops.py` 中拆出，统一�
 
 ## 当前内置角色
 
-default pack 当前内置 20 个角色，覆盖主控编排、项目推进、策略研究、产品体验、增长商业化、技术交付、经营保障等完整链路。
+default pack 当前内置 21 个角色，覆盖主控编排、项目推进、策略研究、红队验证、产品体验、增长商业化、技术交付、经营保障等完整链路。
 
 | agent_id | 名称 | 类型 | 上级 | 核心能力 |
 |---|---|---|---|---|
@@ -26,6 +26,7 @@ default pack 当前内置 20 个角色，覆盖主控编排、项目推进、策
 | `coo` | COO魏明远 | sub | `ceo` | task_assess, task_transition, memory_sync |
 | `project` | 项目何安澜 | sub | `ceo` | task_progress, task_transition, memory_sync |
 | `strategist` | 策略官苏然 | sub | `ceo` | task_progress, decision_create, risk_assess |
+| `redteam` | 红队秦争 | sub | `ceo` | task_progress, risk_assess |
 | `research` | 研究顾问顾闻舟 | sub | `ceo` | task_progress, decision_create |
 | `product` | 产品周雨桐 | sub | `ceo` | task_progress |
 | `ux` | 体验许知意 | sub | `ceo` | task_progress, risk_assess |
@@ -46,7 +47,7 @@ default pack 当前内置 20 个角色，覆盖主控编排、项目推进、策
 ## default pack 分组
 
 - 主控与调度：`ceo`、`coo`、`project`
-- 策略与研究：`strategist`、`research`
+- 策略与研究：`strategist`、`redteam`、`research`
 - 产品与体验：`product`、`ux`
 - 增长与商业化：`marketing`、`growth`、`sales`、`brand`
 - 技术与交付：`tech`、`devops`、`qa`、`data`

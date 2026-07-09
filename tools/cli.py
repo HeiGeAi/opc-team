@@ -35,6 +35,7 @@ SUBCOMMAND_MAP = {
     "task": "task_flow",
     "decision": "decision_log",
     "risk": "risk_score",
+    "dealguard": "deal_guard",
     "memory": "memory_sync",
     "agent": "agent_ops",
     "catalog": "agent_catalog",
@@ -53,6 +54,7 @@ Subcommands:
   task        Task state machine (create, assess, transition, progress, status)
   decision    Decision log (create, update-assumption, backfill, get, list)
   risk        Risk scoring (assess, update, list, get)
+  dealguard   Deal pre-flight scanner (scan, rules)
   memory      Three-tier memory sync (init, write, compress, archive, read, sync)
   agent       Main/sub-agent orchestration & model routing
   catalog     Agent catalog management (lint, scaffold-pack, list)

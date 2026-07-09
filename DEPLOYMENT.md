@@ -1,10 +1,10 @@
 # OPC Team - 多平台部署指南
 
-OPC Team 当前默认会初始化一套 20 角色 roster，并按 `daily / important / full` 三档编组运行：
+OPC Team 当前默认会初始化一套 21 角色 roster，并按 `daily / important / full` 三档编组运行：
 
 - `daily`：3 个常驻 sub-agent，适合日常问题和短链路决策
-- `important`：8 个核心 sub-agent，适合策略、产品、交付类重要任务
-- `full`：20 角色满编协同，适合用户指定或跨部门复杂任务
+- `important`：9 个核心 sub-agent（含红队诤友），适合策略、产品、交付类重要任务
+- `full`：21 角色满编协同，适合用户指定或跨部门复杂任务
 
 ## 支持的平台
 
@@ -301,7 +301,7 @@ for block in response.content:
 
 ```json
 {
-  "version": "4.7.0",
+  "version": "4.8.0",
   "platform": "generic",
   "paths": {
     "data_dir": "data",
@@ -350,11 +350,11 @@ for block in response.content:
         "agent_ids": ["coo", "project", "strategist"]
       },
       "important": {
-        "sub_agent_target": 8,
-        "agent_ids": ["coo", "project", "strategist", "research", "product", "tech", "data", "qa"]
+        "sub_agent_target": 9,
+        "agent_ids": ["coo", "project", "strategist", "redteam", "research", "product", "tech", "data", "qa"]
       },
       "full": {
-        "sub_agent_target": 19,
+        "sub_agent_target": 20,
         "agent_ids": "__all_sub_agents__"
       }
     }
