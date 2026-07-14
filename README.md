@@ -519,7 +519,7 @@ sed -n '1,220p' strategy/runbooks/scenario-enterprise-feature.md
 
 ```json
 {
-  "version": "4.7.0",
+  "version": "4.8.0",
   "platform": "generic",
   "paths": {
     "tasks_dir": "${data_dir}/tasks",
