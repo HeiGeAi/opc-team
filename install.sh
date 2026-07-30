@@ -391,17 +391,30 @@ install_for_platform() {
 run_test() {
     echo_info "运行测试..."
 
-    # 创建测试任务
-    TEST_OUTPUT=$(run_repo_tool task_flow create --title "安装测试" --ceo-input "测试安装是否成功" 2>&1)
+    # 在隔离数据目录中创建测试任务，避免污染真实任务、agent 状态和 ID 计数器。
+    TEST_ROOT=$(mktemp -d)
+    TEST_CONFIG="$TEST_ROOT/config.json"
+    python3 - "$SCRIPT_DIR/config.json" "$TEST_CONFIG" "$TEST_ROOT/data" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+source, target, data_dir = sys.argv[1:4]
+config = json.loads(Path(source).read_text(encoding="utf-8"))
+config["paths"]["data_dir"] = data_dir
+config["features"]["auto_sync_memory"] = False
+Path(target).write_text(json.dumps(config, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+PY
+
+    TEST_OUTPUT=$(OPC_CONFIG="$TEST_CONFIG" run_repo_tool task_flow create --title "安装测试" --ceo-input "测试安装是否成功" 2>&1)
 
     if echo "$TEST_OUTPUT" | grep -q "success.*true"; then
-        TASK_ID=$(echo "$TEST_OUTPUT" | grep -o 'T[0-9]\{3\}')
+        TASK_ID=$(echo "$TEST_OUTPUT" | grep -o 'T[0-9]\{3\}' | head -n 1)
+        rm -rf "$TEST_ROOT"
         echo_success "测试通过！任务 $TASK_ID 创建成功"
-
-        # 清理测试数据
-        rm -f "$SCRIPT_DIR/data/tasks/$TASK_ID.json"
         return 0
     else
+        rm -rf "$TEST_ROOT"
         echo_error "测试失败"
         echo "$TEST_OUTPUT"
         return 1
@@ -439,7 +452,7 @@ EOF
 # 主函数
 main() {
     echo "========================================="
-    echo "  OPC Team v4.7.0 安装程序"
+    echo "  OPC Team v4.8.1 安装程序"
     echo "========================================="
     echo ""
 

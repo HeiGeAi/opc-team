@@ -301,7 +301,7 @@ for block in response.content:
 
 ```json
 {
-  "version": "4.8.0",
+  "version": "4.8.1",
   "platform": "generic",
   "paths": {
     "data_dir": "data",

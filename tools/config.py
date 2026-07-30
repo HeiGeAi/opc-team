@@ -21,7 +21,7 @@ class Config:
     """配置管理器"""
 
     def __init__(self, config_file: Optional[str] = None):
-        self.config_file = config_file or self._find_config_file()
+        self.config_file = Path(config_file) if config_file else self._find_config_file()
         self.data = self._load_config()
 
     def _find_config_file(self) -> Path:
@@ -68,7 +68,7 @@ class Config:
         读路径（get/info 等）不产生副作用；只有显式 init/set 才写 config.json。
         """
         default = {
-            "version": "4.7.0",
+            "version": "4.8.1",
             "platform": "generic",  # generic / claude_code / openclaw / cursor / api
             "paths": {
                 "data_dir": str(Path.cwd() / "data"),
@@ -130,12 +130,12 @@ class Config:
                     },
                     "important": {
                         "label": "重要任务",
-                        "sub_agent_target": 8,
-                        "agent_ids": ["coo", "project", "strategist", "research", "product", "tech", "data", "qa"]
+                        "sub_agent_target": 9,
+                        "agent_ids": ["coo", "project", "strategist", "redteam", "research", "product", "tech", "data", "qa"]
                     },
                     "full": {
                         "label": "满编协同",
-                        "sub_agent_target": 19,
+                        "sub_agent_target": 20,
                         "agent_ids": "__all_sub_agents__"
                     }
                 },
