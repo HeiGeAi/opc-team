@@ -85,15 +85,15 @@ DEFAULT_DISPATCH_PROFILES = {
     },
     "important": {
         "label": "重要任务",
-        "description": "重要任务拉起 8 个核心 sub-agent，覆盖拆解、研究、方案、执行与校验。",
-        "sub_agent_target": 8,
-        "agent_ids": ["coo", "project", "strategist", "research", "product", "tech", "data", "qa"],
+        "description": "重要任务拉起 9 个核心 sub-agent，覆盖拆解、研究、方案、执行与校验。",
+        "sub_agent_target": 9,
+        "agent_ids": ["coo", "project", "strategist", "redteam", "research", "product", "tech", "data", "qa"],
         "task_levels": ["L3_STRATEGY"]
     },
     "full": {
         "label": "满编协同",
         "description": "用户指定或高复杂任务启用全部角色梯队，按当前 pack 的满编能力协同。",
-        "sub_agent_target": 19,
+        "sub_agent_target": 20,
         "agent_ids": PROFILE_ALL_SUB_AGENTS,
         "task_levels": ["L4_DEBATE"]
     }

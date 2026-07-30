@@ -1,7 +1,7 @@
 # OPC Team — Cross-Platform Agent Ops Framework
 
 [![CI](https://github.com/HeiGeAi/opc-team/actions/workflows/ci.yml/badge.svg)](https://github.com/HeiGeAi/opc-team/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-v4.8.0-111827.svg)](./README.md)
+[![Version](https://img.shields.io/badge/version-v4.8.1-111827.svg)](./README.md)
 [![Python](https://img.shields.io/badge/python-3.9%2B-3776AB.svg?logo=python&logoColor=white)](./pyproject.toml)
 [![License](https://img.shields.io/badge/license-MIT-059669.svg)](./LICENSE)
 

@@ -1,4 +1,4 @@
-# OPC公司Agent团队 v4.8.0 (Universal Edition)
+# OPC公司Agent团队 v4.8.1 (Universal Edition)
 
 **这是一个跨平台通用的主从 Agent 协作框架。**
 
@@ -550,11 +550,13 @@ python3 /path/to/opc-team/tools/task_flow.py create ...
 
 ## 八、版本信息
 
-- **版本**: v4.8.0 Universal Edition
-- **发布日期**: 2026-07-09
+- **版本**: v4.8.1 Universal Edition
+- **发布日期**: 2026-07-31
 - **兼容平台**: Claude Code / OpenClaw / Cursor / Windsurf / 通用 CLI
 - **依赖**: Python 3.9+
 - **License**: MIT
+
+**v4.8.1 更新**：安装器自测使用隔离配置，不再把测试任务、计数器、agent 状态、MEMORY 或日志写入真实目录；公开版本源统一为 4.8.1。
 
 **v4.8.0 更新**：接入资深 OPC 从业者长文经验。①新增 `deal_guard.py` 接单预检器（7 条致命模式探测 + 线程挤兑告警，`opc dealguard`）、`references/OPC_PLAYBOOK.md` 共享军规；②把交易卫生学和反服务商化铁律注入 sales/legal/finance/customer_success/strategist/product/tech/coo/ceo 九个角色的关键规则；③新增 `redteam` 红队诤友角色（第 21 席），作为 L3/L4 决策的验证闸门，纳入 important 调度档；角色数 20→21、编组 3/8→3/9、full 满编 21。
 
